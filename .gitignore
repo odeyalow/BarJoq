@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+## Panda
+src/styled-system
+src/styled-system-studio
+
+# local app data
+prisma/dev.db
+prisma/dev.db-journal
+public/uploads/
+.next-dev.log
+cookies.txt

@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+}
+
+enum AbsenceStatus {
+  MISSED
+  REQUESTED
+  ASSIGNED
+  SUBMITTED
+  GRADED
+  EXPIRED
+}
+
+enum AttachmentOwnerType {
+  EXCUSE
+  ASSIGNMENT
+  RESPONSE
+}
+
+enum NotificationTone {
+  RED
+  GRAY
+  AMBER
+  GREEN
+  TEAL
+}
+
+enum NotificationIcon {
+  CALENDAR
+  BELL
+  MESSAGE
+  REVIEW
+  COMPLETED
+}
+
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  passwordHash String
+  role         UserRole
+  student      StudentProfile?
+  teacher      TeacherProfile?
+  sessions     Session[]
+  notifications Notification[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TeacherProfile {
+  id         String    @id @default(cuid())
+  userId     String    @unique
+  fullName   String
+  position   String
+  department String
+  isDepartmentHead Boolean @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groups     Group[]   @relation("TeacherGroups")
+  subjects   Subject[]
+  absences   Absence[]
+  importBatches ImportBatch[] @relation("DepartmentHeadImports")
+}
+
+model Group {
+  id         String           @id @default(cuid())
+  name       String           @unique
+  course     Int
+  specialty  String
+  teacherId  String
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  teacher    TeacherProfile   @relation("TeacherGroups", fields: [teacherId], references: [id], onDelete: Cascade)
+  students   StudentProfile[]
+}
+
+model StudentProfile {
+  id        String    @id @default(cuid())
+  userId    String?   @unique
+  fullName  String
+  age       Int
+  course    Int
+  email     String    @unique
+  groupId   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  absences  Absence[]
+
+  @@index([groupId])
+}
+
+model Subject {
+  id        String    @id @default(cuid())
+  name      String
+  teacherId String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  absences  Absence[]
+
+  @@unique([name, teacherId])
+}
+
+model Absence {
+  id                  String             @id @default(cuid())
+  studentId           String
+  teacherId           String
+  subjectId           String
+  importBatchId       String?
+  date                DateTime
+  lessonLabel         String
+  classroom           String
+  status              AbsenceStatus      @default(MISSED)
+  requestedAt         DateTime?
+  reworkAccessRequestedAt DateTime?
+  markedNbAt          DateTime?
+  grade               Int?
+  completedAt         DateTime?
+  assignmentText      String?
+  assignmentSentAt    DateTime?
+  assignmentEditedAt  DateTime?
+  responseText        String?
+  responseSubmittedAt DateTime?
+  responseEditedAt    DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  student             StudentProfile     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher             TeacherProfile     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject             Subject            @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  importBatch         ImportBatch?       @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  attachments         AbsenceAttachment[]
+  notifications       Notification[]
+
+  @@index([studentId, date])
+  @@index([teacherId, date])
+  @@index([importBatchId])
+  @@index([status])
+}
+
+model AbsenceAttachment {
+  id        String              @id @default(cuid())
+  absenceId String
+  ownerType AttachmentOwnerType
+  name      String
+  href      String
+  sizeLabel String
+  createdAt DateTime            @default(now())
+  absence   Absence             @relation(fields: [absenceId], references: [id], onDelete: Cascade)
+
+  @@index([absenceId, ownerType])
+}
+
+model Notification {
+  id        String            @id @default(cuid())
+  userId    String
+  absenceId String?
+  targetHref String?
+  title     String
+  message   String
+  tone      NotificationTone
+  icon      NotificationIcon
+  readAt    DateTime?
+  createdAt DateTime          @default(now())
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  absence   Absence?          @relation(fields: [absenceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+model ImportBatch {
+  id                   String         @id @default(cuid())
+  departmentHeadId     String
+  reportFileName       String
+  reportFileHref       String
+  reportFileSizeLabel  String
+  scheduleFileName     String?
+  scheduleFileHref     String?
+  scheduleFileSizeLabel String?
+  importedAbsencesCount Int          @default(0)
+  matchedStudentsCount Int           @default(0)
+  unmatchedRowsCount   Int           @default(0)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  departmentHead       TeacherProfile @relation("DepartmentHeadImports", fields: [departmentHeadId], references: [id], onDelete: Cascade)
+  absences             Absence[]
+
+  @@index([departmentHeadId, createdAt])
+}
