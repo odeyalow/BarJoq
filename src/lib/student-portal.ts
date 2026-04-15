@@ -48,6 +48,7 @@ export interface AbsenceRecord {
   markedNbAt?: string;
   requestedAt?: string;
   reworkAccessRequestedAt?: string;
+  subjectId: string;
   subject: string;
   teacherName: string;
   teacherRole: string;

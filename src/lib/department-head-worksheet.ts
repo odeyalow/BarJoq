@@ -1,7 +1,8 @@
+import { AbsenceStatus as PrismaAbsenceStatus } from "@prisma/client";
 import { chromium } from "playwright";
-import { prisma } from "@/lib/prisma";
 import { loadWorksheetTemplateStyle } from "@/lib/department-head-import";
 import type { DepartmentHeadSortMode } from "@/lib/department-head-portal";
+import { prisma } from "@/lib/prisma";
 
 function escapeHtml(value: string) {
   return value
@@ -21,6 +22,15 @@ function formatRuDate(value: Date) {
   }).format(value);
 }
 
+function getWorksheetFileDate() {
+  return new Intl.DateTimeFormat("sv-SE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Asia/Qyzylorda",
+  }).format(new Date());
+}
+
 function buildWorksheetPage(input: {
   index: number;
   studentFullName: string;
@@ -29,7 +39,7 @@ function buildWorksheetPage(input: {
   absences: Array<{
     subject: string;
     date: Date;
-    grade: number | null;
+    grade: number;
     teacherName: string;
   }>;
 }) {
@@ -64,7 +74,7 @@ function buildWorksheetPage(input: {
                   <td>${index + 1}</td>
                   <td>${escapeHtml(absence.subject)}</td>
                   <td>${escapeHtml(formatRuDate(absence.date))}</td>
-                  <td>${absence.grade ?? ""}</td>
+                  <td>${absence.grade}</td>
                   <td>${escapeHtml(absence.teacherName)}</td>
                   <td></td>
                 </tr>
@@ -148,16 +158,32 @@ function buildWorksheetHtml(input: {
   `;
 }
 
+export function buildWorksheetDownloadFileName() {
+  return `Отработочный-лист-${getWorksheetFileDate()}.pdf`;
+}
+
 export async function generateDepartmentHeadWorksheetPdf(input: {
   studentId?: string;
+  subjectId?: string;
   sortMode?: DepartmentHeadSortMode;
 }) {
   const absences = await prisma.absence.findMany({
-    where: input.studentId
-      ? {
-          studentId: input.studentId,
-        }
-      : undefined,
+    where: {
+      ...(input.studentId
+        ? {
+            studentId: input.studentId,
+          }
+        : {}),
+      ...(input.subjectId
+        ? {
+            subjectId: input.subjectId,
+          }
+        : {}),
+      status: PrismaAbsenceStatus.GRADED,
+      NOT: {
+        grade: null,
+      },
+    },
     include: {
       student: {
         include: {
@@ -178,7 +204,7 @@ export async function generateDepartmentHeadWorksheetPdf(input: {
   });
 
   if (!absences.length) {
-    throw new Error("Нет данных для формирования отработочного листа.");
+    throw new Error("Нет оцененных отработок для формирования отработочного листа.");
   }
 
   const groupedAbsences = new Map<
@@ -190,7 +216,7 @@ export async function generateDepartmentHeadWorksheetPdf(input: {
       absences: Array<{
         subject: string;
         date: Date;
-        grade: number | null;
+        grade: number;
         teacherName: string;
       }>;
     }
@@ -211,7 +237,7 @@ export async function generateDepartmentHeadWorksheetPdf(input: {
     groupedAbsences.get(absence.studentId)?.absences.push({
       subject: absence.subject.name,
       date: absence.date,
-      grade: absence.grade,
+      grade: absence.grade ?? 0,
       teacherName: absence.teacher.fullName,
     });
   }

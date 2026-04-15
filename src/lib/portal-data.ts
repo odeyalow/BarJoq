@@ -124,6 +124,7 @@ function mapStudentAbsence(
     markedNbAt: absence.markedNbAt?.toISOString(),
     requestedAt: absence.requestedAt?.toISOString(),
     reworkAccessRequestedAt: absence.reworkAccessRequestedAt?.toISOString(),
+    subjectId: absence.subject.id,
     subject: absence.subject.name,
     teacherName: absence.teacher.fullName,
     teacherRole: absence.teacher.position,

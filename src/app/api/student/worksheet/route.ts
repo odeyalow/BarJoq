@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireDepartmentHeadRequestSession } from "@/lib/auth";
+import { requireStudentRequestSession } from "@/lib/auth";
 import {
   buildWorksheetDownloadFileName,
   generateDepartmentHeadWorksheetPdf,
 } from "@/lib/department-head-worksheet";
-import type { DepartmentHeadSortMode } from "@/lib/department-head-portal";
 
 export const runtime = "nodejs";
 
@@ -13,22 +12,22 @@ function buildContentDisposition(fileName: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await requireDepartmentHeadRequestSession(request);
+  const session = await requireStudentRequestSession(request);
 
-  if (!session?.user.teacher) {
+  if (!session?.user.student) {
     return NextResponse.json(
-      { error: "Требуется вход зав. отделения." },
+      { error: "Требуется вход студента." },
       { status: 401 },
     );
   }
 
   try {
     const url = new URL(request.url);
-    const studentId = url.searchParams.get("studentId") ?? undefined;
-    const sortMode = (url.searchParams.get("sortMode") ?? "newest") as DepartmentHeadSortMode;
+    const subjectId = url.searchParams.get("subjectId") ?? undefined;
     const pdf = await generateDepartmentHeadWorksheetPdf({
-      studentId: studentId === "all" ? undefined : studentId,
-      sortMode,
+      studentId: session.user.student.id,
+      subjectId,
+      sortMode: "date",
     });
 
     return new NextResponse(new Uint8Array(pdf), {

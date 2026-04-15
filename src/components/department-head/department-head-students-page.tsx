@@ -32,6 +32,14 @@ export function DepartmentHeadStudentsPage() {
       });
   }, [sortMode, studentFilter, studentStatuses]);
 
+  const worksheetRows = useMemo(
+    () =>
+      filteredRows.filter(
+        (row) => row.status === "graded" && row.grade !== undefined,
+      ),
+    [filteredRows],
+  );
+
   const handleDownloadWorksheet = () => {
     const url = new URL("/api/teacher/head/worksheet", window.location.origin);
     url.searchParams.set("studentId", studentFilter);
@@ -137,7 +145,7 @@ export function DepartmentHeadStudentsPage() {
 
               <Button
                 colorPalette="teal"
-                disabled={!filteredRows.length}
+                disabled={!worksheetRows.length}
                 onClick={handleDownloadWorksheet}
               >
                 <Download />

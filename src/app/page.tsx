@@ -299,51 +299,6 @@ export default function AuthPage() {
               })}
             </div>
 
-            <div
-              className={css({
-                alignItems: "center",
-                bg: "gray.subtle.bg",
-                borderRadius: "l3",
-                display: "flex",
-                flexDirection: { base: "column", lg: "row" },
-                gap: "4",
-                justifyContent: "space-between",
-                p: "4",
-                position: "relative",
-                zIndex: "1",
-              })}
-            >
-              <div>
-                <Text
-                  className={css({
-                    fontWeight: "semibold",
-                  })}
-                >
-                  Стартовый аккаунт студента
-                </Text>
-                <Text
-                  className={css({
-                    color: "fg.muted",
-                    mt: "1",
-                  })}
-                >
-                  Email: {defaultStudentAccount.email} | Пароль:{" "}
-                  {defaultStudentAccount.password}
-                </Text>
-              </div>
-
-              <Button
-                colorPalette="teal"
-                onClick={() => {
-                  setMode("login");
-                  setEmail(defaultStudentAccount.email);
-                  setPassword(defaultStudentAccount.password);
-                }}
-              >
-                Подставить данные входа
-                <ArrowRight />
-              </Button>
-            </div>
           </section>
 
           <Card.Root
