@@ -8,6 +8,7 @@ import {
 import { isStudentAbsenceDeadlineExpired } from "@/lib/absence-deadlines";
 import { requireStudentRequestSession } from "@/lib/auth";
 import {
+  notifyStudentAboutResponseSubmitted,
   notifyTeacherAboutResponse,
   notifyTeacherAboutResponseDeletion,
 } from "@/lib/notification-service";
@@ -116,6 +117,7 @@ export async function POST(
   });
 
   await notifyTeacherAboutResponse(absence.id);
+  await notifyStudentAboutResponseSubmitted(absence.id);
 
   return NextResponse.json(await buildStudentPortalPayload(session.user.id));
 }

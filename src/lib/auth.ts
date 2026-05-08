@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -13,6 +13,32 @@ const sessionDurationSeconds = Math.floor(sessionDurationMs / 1000);
 
 function buildSessionExpiry() {
   return new Date(Date.now() + sessionDurationMs);
+}
+
+function getSessionTokenFromCookieHeader(cookieHeader?: string | null) {
+  if (!cookieHeader) {
+    return null;
+  }
+
+  const parts = cookieHeader.split(";").map((part) => part.trim());
+
+  for (const part of parts) {
+    if (!part) {
+      continue;
+    }
+
+    const [name, ...rest] = part.split("=");
+    const value = rest.join("=");
+
+    if (
+      name === sessionCookieName ||
+      name === sessionShadowCookieName
+    ) {
+      return value || null;
+    }
+  }
+
+  return null;
 }
 
 function getCookieConfig(
@@ -126,9 +152,17 @@ async function getValidSessionByToken(token?: string | null) {
 
 export async function getCurrentSession() {
   const cookieStore = await cookies();
-  return getValidSessionByToken(
+  const cookieToken =
     cookieStore.get(sessionCookieName)?.value ??
-      cookieStore.get(sessionShadowCookieName)?.value,
+    cookieStore.get(sessionShadowCookieName)?.value;
+
+  if (cookieToken) {
+    return getValidSessionByToken(cookieToken);
+  }
+
+  const headerStore = await headers();
+  return getValidSessionByToken(
+    getSessionTokenFromCookieHeader(headerStore.get("cookie")),
   );
 }
 
@@ -147,9 +181,19 @@ export async function getRequestSession(request: NextRequest) {
   }
 
   const cookieStore = await cookies();
-  return getValidSessionByToken(
+  const cookieToken =
     cookieStore.get(sessionCookieName)?.value ??
-      cookieStore.get(sessionShadowCookieName)?.value,
+    cookieStore.get(sessionShadowCookieName)?.value;
+
+  if (cookieToken) {
+    return getValidSessionByToken(cookieToken);
+  }
+
+  const headerStore = await headers();
+  return getValidSessionByToken(
+    getSessionTokenFromCookieHeader(
+      request.headers.get("cookie") ?? headerStore.get("cookie"),
+    ),
   );
 }
 

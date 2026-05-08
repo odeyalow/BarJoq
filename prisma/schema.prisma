@@ -15,6 +15,7 @@ enum UserRole {
 enum AbsenceStatus {
   MISSED
   REQUESTED
+  PENDING_APPROVAL
   ASSIGNED
   SUBMITTED
   GRADED
@@ -133,6 +134,8 @@ model Absence {
   classroom           String
   status              AbsenceStatus      @default(MISSED)
   requestedAt         DateTime?
+  teacherConfirmedAt  DateTime?
+  departmentHeadApprovedAt DateTime?
   reworkAccessRequestedAt DateTime?
   markedNbAt          DateTime?
   grade               Int?

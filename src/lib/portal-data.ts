@@ -3,7 +3,10 @@ import {
   AttachmentOwnerType,
 } from "@prisma/client";
 import { syncAbsenceDeadlines } from "@/lib/absence-service";
-import { getUserNotifications } from "@/lib/notification-service";
+import {
+  getUserNotifications,
+  notifyStudentAboutUpcomingDeadlines,
+} from "@/lib/notification-service";
 import { prisma } from "@/lib/prisma";
 import {
   type AbsenceRecord,
@@ -18,6 +21,7 @@ import {
 } from "@/lib/teacher-portal";
 import type {
   DepartmentHeadImportBatchRecord,
+  DepartmentHeadPendingApprovalRecord,
   DepartmentHeadPortalPayload,
   DepartmentHeadStudentStatusRecord,
 } from "@/lib/department-head-portal";
@@ -57,6 +61,8 @@ function mapStudentStatus(input: {
   switch (input.status) {
     case PrismaAbsenceStatus.REQUESTED:
       return "request_sent";
+    case PrismaAbsenceStatus.PENDING_APPROVAL:
+      return "awaiting_head";
     case PrismaAbsenceStatus.ASSIGNED:
       return "assignment_received";
     case PrismaAbsenceStatus.SUBMITTED:
@@ -85,6 +91,8 @@ function mapTeacherStatus(input: {
   switch (input.status) {
     case PrismaAbsenceStatus.REQUESTED:
       return "request_received";
+    case PrismaAbsenceStatus.PENDING_APPROVAL:
+      return "awaiting_head";
     case PrismaAbsenceStatus.ASSIGNED:
       return "assignment_sent";
     case PrismaAbsenceStatus.SUBMITTED:
@@ -123,6 +131,8 @@ function mapStudentAbsence(
     updatedAt: absence.updatedAt.toISOString(),
     markedNbAt: absence.markedNbAt?.toISOString(),
     requestedAt: absence.requestedAt?.toISOString(),
+    teacherConfirmedAt: absence.teacherConfirmedAt?.toISOString(),
+    departmentHeadApprovedAt: absence.departmentHeadApprovedAt?.toISOString(),
     reworkAccessRequestedAt: absence.reworkAccessRequestedAt?.toISOString(),
     subjectId: absence.subject.id,
     subject: absence.subject.name,
@@ -179,6 +189,8 @@ function mapTeacherAbsence(
     lessonLabel: absence.lessonLabel,
     updatedAt: absence.updatedAt.toISOString(),
     requestedAt: absence.requestedAt?.toISOString(),
+    teacherConfirmedAt: absence.teacherConfirmedAt?.toISOString(),
+    departmentHeadApprovedAt: absence.departmentHeadApprovedAt?.toISOString(),
     reworkAccessRequestedAt: absence.reworkAccessRequestedAt?.toISOString(),
     subject: absence.subject.name,
     classroom: absence.classroom,
@@ -193,15 +205,18 @@ function mapTeacherAbsence(
     }),
     excuseAttachment,
     markedNbAt: absence.markedNbAt?.toISOString(),
-    assignment:
-      absence.assignmentText && absence.assignmentSentAt
-        ? {
-            text: absence.assignmentText,
-            attachments: assignmentAttachments,
-            sentAt: absence.assignmentSentAt.toISOString(),
-            editedAt: absence.assignmentEditedAt?.toISOString(),
-          }
-        : undefined,
+    assignment: absence.assignmentText
+      ? {
+          text: absence.assignmentText,
+          attachments: assignmentAttachments,
+          sentAt: (
+            absence.assignmentSentAt ??
+            absence.teacherConfirmedAt ??
+            absence.updatedAt
+          ).toISOString(),
+          editedAt: absence.assignmentEditedAt?.toISOString(),
+        }
+      : undefined,
     response:
       absence.responseText && absence.responseSubmittedAt
         ? {
@@ -277,8 +292,12 @@ export async function buildStudentPortalPayload(
   });
 
   const absences = (await getStudentAbsences(studentUser.student.id)).map(
-    mapStudentAbsence,
+    (absence) => absence,
   );
+
+  await notifyStudentAboutUpcomingDeadlines(studentUser.id, absences);
+
+  const mappedAbsences = absences.map(mapStudentAbsence);
   const notifications = await getUserNotifications(studentUser.id);
 
   return {
@@ -289,7 +308,7 @@ export async function buildStudentPortalPayload(
       course: studentUser.student.course,
       email: studentUser.email,
     },
-    absences,
+    absences: mappedAbsences,
     notifications,
   };
 }
@@ -420,6 +439,7 @@ export async function buildDepartmentHeadPortalPayload(
   const [allAbsences, allStudents, regularTeachersCount, groupsCount] = await Promise.all([
     prisma.absence.findMany({
       include: {
+        attachments: true,
         student: {
           include: {
             group: true,
@@ -495,6 +515,34 @@ export async function buildDepartmentHeadPortalPayload(
     grade: absence.grade ?? undefined,
   }));
 
+  const pendingApprovals: DepartmentHeadPendingApprovalRecord[] = allAbsences
+    .filter((absence) => absence.status === PrismaAbsenceStatus.PENDING_APPROVAL)
+    .map((absence) => ({
+      absenceId: absence.id,
+      studentId: absence.student.id,
+      studentFullName: absence.student.fullName,
+      studentGroup: absence.student.group.name,
+      subject: absence.subject.name,
+      teacherName: absence.teacher.fullName,
+      date: absence.date.toISOString(),
+      updatedAt: absence.updatedAt.toISOString(),
+      requestedAt: absence.requestedAt?.toISOString(),
+      teacherConfirmedAt: absence.teacherConfirmedAt?.toISOString(),
+      lessonLabel: absence.lessonLabel,
+      classroom: absence.classroom,
+      excuseAttachment: mapAttachmentList(
+        absence.attachments,
+        AttachmentOwnerType.EXCUSE,
+      )[0],
+      assignmentText: absence.assignmentText ?? "",
+      assignmentAttachments: mapAttachmentList(
+        absence.attachments,
+        AttachmentOwnerType.ASSIGNMENT,
+      ),
+    }));
+
+  const notifications = await getUserNotifications(headUser.id);
+
   return {
     head: {
       fullName: headUser.teacher.fullName,
@@ -505,6 +553,7 @@ export async function buildDepartmentHeadPortalPayload(
       groupsCount,
       studentsCount: allStudents.length,
       importsCount: imports.length,
+      pendingApprovalsCount: pendingApprovals.length,
     },
     imports,
     students: allStudents.map((student) => ({
@@ -513,5 +562,7 @@ export async function buildDepartmentHeadPortalPayload(
       group: student.group.name,
     })),
     studentStatuses,
+    pendingApprovals,
+    notifications,
   };
 }

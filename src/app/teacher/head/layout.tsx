@@ -4,6 +4,8 @@ import { DepartmentHeadShell } from "@/components/department-head/department-hea
 import { requireDepartmentHeadSession } from "@/lib/auth";
 import { buildDepartmentHeadPortalPayload } from "@/lib/portal-data";
 
+export const dynamic = "force-dynamic";
+
 export default async function DepartmentHeadLayout({
   children,
 }: {

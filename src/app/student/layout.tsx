@@ -4,6 +4,8 @@ import { buildStudentPortalPayload } from "@/lib/portal-data";
 import { StudentPortalProvider } from "@/components/student/student-portal-provider";
 import { StudentShell } from "@/components/student/student-shell";
 
+export const dynamic = "force-dynamic";
+
 export default async function StudentLayout({
   children,
 }: {

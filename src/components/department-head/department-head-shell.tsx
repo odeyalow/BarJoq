@@ -1,9 +1,10 @@
 "use client";
 
-import { BookOpenText, Files, FolderUp, UsersRound } from "lucide-react";
+import { BookOpenText, Files, FolderUp, ShieldCheck, UsersRound } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { ThemeToggle } from "@/components/student/theme-toggle";
+import { DepartmentHeadNotificationsPopover } from "@/components/department-head/department-head-notifications-popover";
 import { DepartmentHeadProfileDialog } from "@/components/department-head/department-head-profile-dialog";
 import { useDepartmentHeadPortal } from "@/components/department-head/department-head-portal-provider";
 import { Button, Text } from "@/components/ui";
@@ -13,7 +14,12 @@ const pageCopy = {
   dashboard: {
     title: "Кабинет зав. отделения",
     description:
-      "Загрузка отчетов с пропусками, просмотр предпросмотра перед сохранением и история импортов с файлами.",
+      "Загрузка отчетов с пропусками, предпросмотр перед сохранением и история импортов с файлами.",
+  },
+  approvals: {
+    title: "Подтверждение заявок",
+    description:
+      "Очередь заявок на отработку, которые уже подтверждены преподавателем и ожидают вашего согласования.",
   },
   students: {
     title: "Все данные студентов",
@@ -27,9 +33,11 @@ export function DepartmentHeadShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { head } = useDepartmentHeadPortal();
 
-  const pageInfo = pathname.startsWith("/teacher/head/students")
-    ? pageCopy.students
-    : pageCopy.dashboard;
+  const pageInfo = pathname.startsWith("/teacher/head/approvals")
+    ? pageCopy.approvals
+    : pathname.startsWith("/teacher/head/students")
+      ? pageCopy.students
+      : pageCopy.dashboard;
 
   const navItems = [
     {
@@ -37,6 +45,12 @@ export function DepartmentHeadShell({ children }: { children: ReactNode }) {
       label: "Импорт пропусков",
       icon: FolderUp,
       matches: (value: string) => value === "/teacher/head",
+    },
+    {
+      href: "/teacher/head/approvals",
+      label: "Подтверждение заявок",
+      icon: ShieldCheck,
+      matches: (value: string) => value.startsWith("/teacher/head/approvals"),
     },
     {
       href: "/teacher/head/students",
@@ -188,11 +202,12 @@ export function DepartmentHeadShell({ children }: { children: ReactNode }) {
                         textStyle: "xs",
                       })}
                     >
-                      {head.position}
+                      {head.pendingApprovalsCount} заявок на подтверждении
                     </Text>
                   </div>
                 </div>
 
+                <DepartmentHeadNotificationsPopover />
                 <ThemeToggle />
                 <DepartmentHeadProfileDialog />
               </div>

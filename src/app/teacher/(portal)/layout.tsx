@@ -4,6 +4,8 @@ import { buildTeacherPortalPayload } from "@/lib/portal-data";
 import { TeacherPortalProvider } from "@/components/teacher/teacher-portal-provider";
 import { TeacherShell } from "@/components/teacher/teacher-shell";
 
+export const dynamic = "force-dynamic";
+
 export default async function TeacherPortalLayout({
   children,
 }: {

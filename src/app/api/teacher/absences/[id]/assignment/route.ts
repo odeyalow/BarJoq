@@ -7,9 +7,12 @@ import {
 } from "@/lib/absence-service";
 import { isStudentAbsenceDeadlineExpired } from "@/lib/absence-deadlines";
 import { requireTeacherRequestSession } from "@/lib/auth";
-import { notifyStudentAboutAssignment } from "@/lib/notification-service";
 import { buildTeacherPortalPayload } from "@/lib/portal-data";
 import { prisma } from "@/lib/prisma";
+import {
+  notifyDepartmentHeadAboutTeacherConfirmedRequest,
+  notifyStudentAboutAwaitingDepartmentHead,
+} from "@/lib/notification-service";
 
 export async function POST(
   request: NextRequest,
@@ -33,6 +36,7 @@ export async function POST(
 
   if (
     absence.status !== AbsenceStatus.REQUESTED &&
+    absence.status !== AbsenceStatus.PENDING_APPROVAL &&
     absence.status !== AbsenceStatus.ASSIGNED
   ) {
     return NextResponse.json(
@@ -42,12 +46,15 @@ export async function POST(
   }
 
   if (
-    absence.status === AbsenceStatus.REQUESTED &&
+    absence.status !== AbsenceStatus.ASSIGNED &&
     isStudentAbsenceDeadlineExpired({
       createdAt: absence.createdAt.toISOString(),
       date: absence.date.toISOString(),
       requestedAt: absence.requestedAt?.toISOString(),
-      status: "request_sent",
+      status:
+        absence.status === AbsenceStatus.PENDING_APPROVAL
+          ? "awaiting_head"
+          : "request_sent",
       updatedAt: absence.updatedAt.toISOString(),
     })
   ) {
@@ -74,16 +81,25 @@ export async function POST(
     .getAll("files")
     .filter((value): value is File => value instanceof File && value.size > 0);
   const now = new Date();
+  const nextStatus =
+    absence.status === AbsenceStatus.ASSIGNED
+      ? AbsenceStatus.ASSIGNED
+      : AbsenceStatus.PENDING_APPROVAL;
 
   await prisma.absence.update({
     where: {
       id: absence.id,
     },
     data: {
-      status: AbsenceStatus.ASSIGNED,
+      status: nextStatus,
       assignmentText: text,
-      assignmentSentAt: absence.assignmentSentAt ?? now,
-      assignmentEditedAt: absence.assignmentSentAt ? now : null,
+      assignmentSentAt:
+        nextStatus === AbsenceStatus.ASSIGNED ? absence.assignmentSentAt ?? now : null,
+      assignmentEditedAt: absence.assignmentText ? now : null,
+      teacherConfirmedAt:
+        nextStatus === AbsenceStatus.PENDING_APPROVAL
+          ? absence.teacherConfirmedAt ?? now
+          : absence.teacherConfirmedAt,
     },
   });
 
@@ -94,7 +110,10 @@ export async function POST(
     files,
   });
 
-  await notifyStudentAboutAssignment(absence.id);
+  if (nextStatus === AbsenceStatus.PENDING_APPROVAL) {
+    await notifyDepartmentHeadAboutTeacherConfirmedRequest(absence.id);
+    await notifyStudentAboutAwaitingDepartmentHead(absence.id);
+  }
 
   return NextResponse.json(await buildTeacherPortalPayload(session.user.id));
 }
@@ -119,7 +138,10 @@ export async function DELETE(
     return NextResponse.json({ error: "Пропуск не найден." }, { status: 404 });
   }
 
-  if (absence.status !== AbsenceStatus.ASSIGNED) {
+  if (
+    absence.status !== AbsenceStatus.ASSIGNED &&
+    absence.status !== AbsenceStatus.PENDING_APPROVAL
+  ) {
     return NextResponse.json(
       { error: "Для этого пропуска нельзя удалить задание." },
       { status: 400 },
@@ -135,6 +157,8 @@ export async function DELETE(
       assignmentText: null,
       assignmentSentAt: null,
       assignmentEditedAt: null,
+      teacherConfirmedAt: null,
+      departmentHeadApprovedAt: null,
     },
   });
 

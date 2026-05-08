@@ -12,6 +12,7 @@ export type TeacherAbsenceStatus =
   | "missed"
   | "nb_marked"
   | "request_received"
+  | "awaiting_head"
   | "assignment_sent"
   | "submitted"
   | "graded"
@@ -72,6 +73,8 @@ export interface TeacherAbsenceRecord {
   lessonLabel: string;
   updatedAt: string;
   requestedAt?: string;
+  teacherConfirmedAt?: string;
+  departmentHeadApprovedAt?: string;
   reworkAccessRequestedAt?: string;
   subject: string;
   classroom: string;
@@ -136,6 +139,13 @@ export const teacherStatusMeta: Record<
     tone: "gray",
     icon: Inbox,
   },
+  awaiting_head: {
+    label: "Ожидает подтверждения",
+    description:
+      "Преподаватель уже подготовил задание, теперь нужно подтверждение зав. отделения.",
+    tone: "gray",
+    icon: ClipboardList,
+  },
   assignment_sent: {
     label: "Задание отправлено",
     description: "Задание выдано. На выполнение у студента есть 3 дня.",
@@ -166,10 +176,11 @@ export const teacherStatusOrder: Record<TeacherAbsenceStatus, number> = {
   missed: 0,
   nb_marked: 1,
   request_received: 2,
-  assignment_sent: 3,
-  submitted: 4,
-  graded: 5,
-  expired: 6,
+  awaiting_head: 3,
+  assignment_sent: 4,
+  submitted: 5,
+  graded: 6,
+  expired: 7,
 };
 
 export const teacherStatusFilters: Array<{
@@ -180,6 +191,7 @@ export const teacherStatusFilters: Array<{
   { value: "missed", label: "Не отработал" },
   { value: "nb_marked", label: "Н/Б поставлено" },
   { value: "request_received", label: "Получена заявка" },
+  { value: "awaiting_head", label: "Ожидает подтверждения" },
   { value: "assignment_sent", label: "Задание отправлено" },
   { value: "submitted", label: "Задание отработано" },
   { value: "graded", label: "Оценено" },

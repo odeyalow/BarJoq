@@ -11,6 +11,7 @@ export type AbsenceStatus =
   | "missed"
   | "nb_marked"
   | "request_sent"
+  | "awaiting_head"
   | "assignment_received"
   | "under_review"
   | "completed"
@@ -47,6 +48,8 @@ export interface AbsenceRecord {
   updatedAt: string;
   markedNbAt?: string;
   requestedAt?: string;
+  teacherConfirmedAt?: string;
+  departmentHeadApprovedAt?: string;
   reworkAccessRequestedAt?: string;
   subjectId: string;
   subject: string;
@@ -135,6 +138,13 @@ export const statusMeta: Record<AbsenceStatus, StatusMeta> = {
       "Заявка отправлена преподавателю. Задание нужно получить до конца месяца.",
     icon: Clock3,
   },
+  awaiting_head: {
+    label: "Ожидает подтверждения",
+    tone: "gray",
+    description:
+      "Преподаватель уже подготовил задание, но оно станет доступно только после подтверждения зав. отделения.",
+    icon: Clock3,
+  },
   assignment_received: {
     label: "Получено задание",
     tone: "amber",
@@ -167,10 +177,11 @@ export const statusOrder: Record<AbsenceStatus, number> = {
   missed: 0,
   nb_marked: 1,
   request_sent: 2,
-  assignment_received: 3,
-  under_review: 4,
-  completed: 5,
-  expired: 6,
+  awaiting_head: 3,
+  assignment_received: 4,
+  under_review: 5,
+  completed: 6,
+  expired: 7,
 };
 
 export const statusFilters: Array<{ value: StatusFilter; label: string }> = [
@@ -178,6 +189,7 @@ export const statusFilters: Array<{ value: StatusFilter; label: string }> = [
   { value: "missed", label: "Не отработан" },
   { value: "nb_marked", label: "Н/Б поставлено" },
   { value: "request_sent", label: "Заявка" },
+  { value: "awaiting_head", label: "Ожидает подтверждения" },
   { value: "assignment_received", label: "Получено задание" },
   { value: "under_review", label: "На оценивании" },
   { value: "completed", label: "Отработан" },

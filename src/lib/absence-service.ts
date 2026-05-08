@@ -1,5 +1,6 @@
 import { AbsenceStatus, AttachmentOwnerType, type Prisma } from "@prisma/client";
 import { deleteFilesByHref, saveUploadedFiles } from "@/lib/file-storage";
+import { notifyUsersAboutExpiredAbsenceBatch } from "@/lib/notification-service";
 import { prisma } from "@/lib/prisma";
 
 function resolveExpirationDate(absence: {
@@ -10,7 +11,8 @@ function resolveExpirationDate(absence: {
 }) {
   if (
     absence.status === AbsenceStatus.MISSED ||
-    absence.status === AbsenceStatus.REQUESTED
+    absence.status === AbsenceStatus.REQUESTED ||
+    absence.status === AbsenceStatus.PENDING_APPROVAL
   ) {
     return new Date(
       absence.createdAt.getFullYear(),
@@ -32,31 +34,36 @@ function resolveExpirationDate(absence: {
 
 async function syncExpiredAbsence(absence: {
   assignmentSentAt: Date | null;
+  assignmentText: string | null;
   createdAt: Date;
   date: Date;
+  departmentHeadApprovedAt: Date | null;
   id: string;
   markedNbAt: Date | null;
   requestedAt: Date | null;
   status: AbsenceStatus;
+  teacherConfirmedAt: Date | null;
 }) {
   const expirationDate = resolveExpirationDate(absence);
 
   if (!expirationDate) {
-    return false;
+    return null;
   }
 
   // Manual N/B should stay stable and must not be replaced by automatic deadline sync.
   if (absence.status === AbsenceStatus.MISSED && absence.markedNbAt) {
-    return false;
+    return null;
   }
 
   if (expirationDate.getTime() > Date.now()) {
     if (absence.status !== AbsenceStatus.EXPIRED) {
-      return false;
+      return null;
     }
 
     const restoredStatus = absence.assignmentSentAt
       ? AbsenceStatus.ASSIGNED
+      : absence.teacherConfirmedAt || absence.assignmentText
+        ? AbsenceStatus.PENDING_APPROVAL
       : absence.requestedAt
         ? AbsenceStatus.REQUESTED
         : AbsenceStatus.MISSED;
@@ -66,7 +73,7 @@ async function syncExpiredAbsence(absence: {
       absence.markedNbAt.getTime() <= absence.createdAt.getTime();
 
     if (!shouldRestore) {
-      return false;
+      return null;
     }
 
     await prisma.absence.update({
@@ -79,11 +86,11 @@ async function syncExpiredAbsence(absence: {
       },
     });
 
-    return true;
+    return "restored";
   }
 
   if (absence.status === AbsenceStatus.EXPIRED) {
-    return false;
+    return null;
   }
 
   await prisma.absence.update({
@@ -96,7 +103,7 @@ async function syncExpiredAbsence(absence: {
     },
   });
 
-  return true;
+  return "expired";
 }
 
 export async function syncAbsenceDeadlineById(absenceId: string) {
@@ -106,12 +113,15 @@ export async function syncAbsenceDeadlineById(absenceId: string) {
     },
     select: {
       assignmentSentAt: true,
+      assignmentText: true,
       createdAt: true,
       date: true,
+      departmentHeadApprovedAt: true,
       id: true,
       markedNbAt: true,
       requestedAt: true,
       status: true,
+      teacherConfirmedAt: true,
     },
   });
 
@@ -119,7 +129,13 @@ export async function syncAbsenceDeadlineById(absenceId: string) {
     return false;
   }
 
-  return syncExpiredAbsence(absence);
+  const result = await syncExpiredAbsence(absence);
+
+  if (result === "expired") {
+    await notifyUsersAboutExpiredAbsenceBatch([absence.id]);
+  }
+
+  return Boolean(result);
 }
 
 export async function syncAbsenceDeadlines(where: Prisma.AbsenceWhereInput) {
@@ -130,6 +146,7 @@ export async function syncAbsenceDeadlines(where: Prisma.AbsenceWhereInput) {
         in: [
           AbsenceStatus.MISSED,
           AbsenceStatus.REQUESTED,
+          AbsenceStatus.PENDING_APPROVAL,
           AbsenceStatus.ASSIGNED,
           AbsenceStatus.EXPIRED,
         ],
@@ -137,21 +154,35 @@ export async function syncAbsenceDeadlines(where: Prisma.AbsenceWhereInput) {
     },
     select: {
       assignmentSentAt: true,
+      assignmentText: true,
       createdAt: true,
       date: true,
+      departmentHeadApprovedAt: true,
       id: true,
       markedNbAt: true,
       requestedAt: true,
       status: true,
+      teacherConfirmedAt: true,
     },
   });
 
   let updated = 0;
+  const expiredIds: string[] = [];
 
   for (const absence of absences) {
-    if (await syncExpiredAbsence(absence)) {
+    const result = await syncExpiredAbsence(absence);
+
+    if (result) {
       updated += 1;
+
+      if (result === "expired") {
+        expiredIds.push(absence.id);
+      }
     }
+  }
+
+  if (expiredIds.length) {
+    await notifyUsersAboutExpiredAbsenceBatch(expiredIds);
   }
 
   return updated;

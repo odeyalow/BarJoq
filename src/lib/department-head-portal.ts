@@ -1,6 +1,13 @@
+import type { Attachment, PortalNotification } from "@/lib/student-portal";
 import type { TeacherAbsenceStatus } from "@/lib/teacher-portal";
 
 export type DepartmentHeadSortMode = "newest" | "date" | "student";
+export type DepartmentHeadApprovalSortMode =
+  | "newest"
+  | "date"
+  | "student"
+  | "teacher"
+  | "group";
 
 export interface DepartmentHeadProfile {
   fullName: string;
@@ -11,6 +18,7 @@ export interface DepartmentHeadProfile {
   groupsCount: number;
   studentsCount: number;
   importsCount: number;
+  pendingApprovalsCount: number;
 }
 
 export interface DepartmentHeadImportFileRecord {
@@ -53,11 +61,31 @@ export interface DepartmentHeadStudentStatusRecord {
   grade?: number;
 }
 
+export interface DepartmentHeadPendingApprovalRecord {
+  absenceId: string;
+  studentId: string;
+  studentFullName: string;
+  studentGroup: string;
+  subject: string;
+  teacherName: string;
+  date: string;
+  updatedAt: string;
+  requestedAt?: string;
+  teacherConfirmedAt?: string;
+  lessonLabel: string;
+  classroom: string;
+  excuseAttachment?: Attachment;
+  assignmentText: string;
+  assignmentAttachments: Attachment[];
+}
+
 export interface DepartmentHeadPortalPayload {
   head: DepartmentHeadProfile;
   imports: DepartmentHeadImportBatchRecord[];
   students: DepartmentHeadStudentOption[];
   studentStatuses: DepartmentHeadStudentStatusRecord[];
+  pendingApprovals: DepartmentHeadPendingApprovalRecord[];
+  notifications: PortalNotification[];
 }
 
 export interface DepartmentHeadPreviewFileMeta {
@@ -115,4 +143,15 @@ export const departmentHeadSortOptions: Array<{
   { value: "newest", label: "Сначала новые" },
   { value: "date", label: "По дате пропуска" },
   { value: "student", label: "По студенту" },
+];
+
+export const departmentHeadApprovalSortOptions: Array<{
+  value: DepartmentHeadApprovalSortMode;
+  label: string;
+}> = [
+  { value: "newest", label: "Сначала новые" },
+  { value: "date", label: "По дате пропуска" },
+  { value: "student", label: "По студенту" },
+  { value: "teacher", label: "По преподавателю" },
+  { value: "group", label: "По группе" },
 ];

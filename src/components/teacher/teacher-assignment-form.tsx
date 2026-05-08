@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowLeft, FileUp, Save } from "lucide-react";
+import { useState, type CSSProperties, type ChangeEvent } from "react";
+import { ArrowLeft, FileUp, Save, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AttachmentList } from "@/components/student/attachment-list";
 import { TeacherStatusBadge } from "@/components/teacher/teacher-status-badge";
@@ -27,12 +27,7 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
   if (!isHydrated) {
     return (
       <Card.Root variant="outline">
-        <Card.Body
-          className={css({
-            gap: "3",
-            py: "8",
-          })}
-        >
+        <Card.Body className={css({ gap: "3", py: "8" })}>
           <Text
             className={css({
               fontFamily: "var(--font-space-grotesk)",
@@ -53,12 +48,7 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
   if (!absence) {
     return (
       <Card.Root variant="outline">
-        <Card.Body
-          className={css({
-            gap: "4",
-            py: "8",
-          })}
-        >
+        <Card.Body className={css({ gap: "4", py: "8" })}>
           <Text
             className={css({
               fontFamily: "var(--font-space-grotesk)",
@@ -82,17 +72,14 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
   }
 
   const canEditAssignment =
-    absence.status === "request_received" || absence.status === "assignment_sent";
+    absence.status === "request_received" ||
+    absence.status === "awaiting_head" ||
+    absence.status === "assignment_sent";
 
   if (!canEditAssignment) {
     return (
       <Card.Root variant="outline">
-        <Card.Body
-          className={css({
-            gap: "4",
-            py: "8",
-          })}
-        >
+        <Card.Body className={css({ gap: "4", py: "8" })}>
           <Text
             className={css({
               fontFamily: "var(--font-space-grotesk)",
@@ -115,8 +102,17 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
     );
   }
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const isPendingApprovalFlow =
+    absence.status === "request_received" || absence.status === "awaiting_head";
+  const submitLabel = absence.assignment
+    ? "Сохранить изменения"
+    : isPendingApprovalFlow
+      ? "Отправить на подтверждение"
+      : "Отправить задание";
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextFiles = Array.from(event.target.files ?? []);
+
     if (!nextFiles.length) {
       return;
     }
@@ -138,17 +134,22 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
     }
 
     setIsSaving(true);
+
     try {
       await saveAssignment(absence.id, {
         text: assignmentText.trim(),
-        keepAttachmentIds: selectedFiles.length ? [] : attachments.map((item) => item.id),
+        keepAttachmentIds: selectedFiles.length
+          ? []
+          : attachments.map((item) => item.id),
         files: selectedFiles,
       });
       router.push(`/teacher/absences/${absence.id}`);
       router.refresh();
     } catch (error) {
       window.alert(
-        error instanceof Error ? error.message : "Не удалось сохранить задание.",
+        error instanceof Error
+          ? error.message
+          : "Не удалось сохранить задание.",
       );
     } finally {
       setIsSaving(false);
@@ -156,12 +157,7 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
   };
 
   return (
-    <div
-      className={css({
-        display: "grid",
-        gap: "6",
-      })}
-    >
+    <div className={css({ display: "grid", gap: "6" })}>
       <section
         className={`reveal ${css({
           backdropFilter: "blur(18px)",
@@ -173,18 +169,8 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
           p: { base: "5", md: "6" },
         })}`}
       >
-        <div
-          className={css({
-            display: "grid",
-            gap: "4",
-          })}
-        >
-          <div
-            className={css({
-              display: "flex",
-              justifyContent: "flex-start",
-            })}
-          >
+        <div className={css({ display: "grid", gap: "4" })}>
+          <div className={css({ display: "flex", justifyContent: "flex-start" })}>
             <Button
               colorPalette="gray"
               onClick={() => router.push(`/teacher/absences/${absence.id}`)}
@@ -204,12 +190,7 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
               justifyContent: "space-between",
             })}
           >
-            <div
-              className={css({
-                display: "grid",
-                gap: "2",
-              })}
-            >
+            <div className={css({ display: "grid", gap: "2" })}>
               <h2
                 className={css({
                   fontFamily: "var(--font-space-grotesk)",
@@ -231,15 +212,44 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
         </div>
       </section>
 
+      {isPendingApprovalFlow ? (
+        <Card.Root variant="outline">
+          <Card.Body
+            className={css({
+              alignItems: { base: "start", md: "center" },
+              bg: "amber.subtle.bg",
+              color: "amber.plain.fg",
+              display: "flex",
+              flexDirection: { base: "column", md: "row" },
+              gap: "3",
+              justifyContent: "space-between",
+              py: "5",
+            })}
+          >
+            <div className={css({ display: "grid", gap: "1.5", maxW: "760px" })}>
+              <div className={css({ alignItems: "center", display: "inline-flex", gap: "2.5" })}>
+                <ShieldCheck className={css({ h: "5", w: "5" })} />
+                <Text className={css({ fontWeight: "700" })}>
+                  Ожидается подтверждение от Зав. отделения
+                </Text>
+              </div>
+              <Text style={{ color: "inherit" }}>
+                {absence.status === "awaiting_head"
+                  ? "Задание уже находится в очереди подтверждения. Студент получит его только после согласования зав. отделения."
+                  : "После сохранения задание не отправится студенту сразу. Сначала оно попадет в очередь подтверждения зав. отделения."}
+              </Text>
+            </div>
+          </Card.Body>
+        </Card.Root>
+      ) : null}
+
       <Card.Root
         variant="outline"
-        className={`reveal ${css({
-          borderColor: "border",
-        })}`}
+        className={`reveal ${css({ borderColor: "border" })}`}
         style={
           {
             "--reveal-delay": "120ms",
-          } as React.CSSProperties
+          } as CSSProperties
         }
       >
         <Card.Header>
@@ -247,16 +257,13 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
             {absence.assignment ? "Изменить задание" : "Добавить задание"}
           </Card.Title>
           <Card.Description>
-            Здесь можно написать текст задания и прикрепить файлы, которые
-            студент увидит в своей отработке.
+            {isPendingApprovalFlow
+              ? "Подготовьте текст задания и вложения. После этого заявка будет ожидать подтверждения зав. отделения."
+              : "Здесь можно написать текст задания и прикрепить файлы, которые студент увидит в своей отработке."}
           </Card.Description>
         </Card.Header>
 
-        <Card.Body
-          className={css({
-            gap: "5",
-          })}
-        >
+        <Card.Body className={css({ gap: "5" })}>
           <Field.Root>
             <Field.Label>Текст задания</Field.Label>
             <Textarea
@@ -302,19 +309,10 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
                 })}
               />
               <div>
-                <Text
-                  className={css({
-                    fontWeight: "semibold",
-                  })}
-                >
-                  Выберите файл или несколько файлов
+                <Text className={css({ fontWeight: "semibold" })}>
+                  Выберите один или несколько файлов
                 </Text>
-                <Text
-                  className={css({
-                    color: "fg.muted",
-                    mt: "1",
-                  })}
-                >
+                <Text className={css({ color: "fg.muted", mt: "1" })}>
                   Подойдут PDF, DOCX, изображения или текстовые файлы.
                 </Text>
               </div>
@@ -322,24 +320,13 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
                 type="file"
                 multiple
                 onChange={handleFileChange}
-                className={css({
-                  display: "none",
-                })}
+                className={css({ display: "none" })}
               />
             </label>
           </Field.Root>
 
-          <div
-            className={css({
-              display: "grid",
-              gap: "3",
-            })}
-          >
-            <Text
-              className={css({
-                fontWeight: "semibold",
-              })}
-            >
+          <div className={css({ display: "grid", gap: "3" })}>
+            <Text className={css({ fontWeight: "semibold" })}>
               Текущие вложения
             </Text>
             {attachments.length ? (
@@ -364,7 +351,7 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
               onClick={handleSubmit}
             >
               <Save />
-              {absence.assignment ? "Сохранить изменения" : "Отправить задание"}
+              {isSaving ? "Сохраняем..." : submitLabel}
             </Button>
             <Button
               colorPalette="gray"

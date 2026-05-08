@@ -19,6 +19,7 @@ type DeadlineAwareAbsence = {
   date: string;
   requestedAt?: string;
   status:
+    | "awaiting_head"
     | "assignment_received"
     | "completed"
     | "expired"
@@ -38,7 +39,11 @@ export function getStudentAbsenceDeadline(
   absence: DeadlineAwareAbsence,
   now = new Date(),
 ): StudentDeadlineInfo | null {
-  if (absence.status === "missed" || absence.status === "request_sent") {
+  if (
+    absence.status === "missed" ||
+    absence.status === "request_sent" ||
+    absence.status === "awaiting_head"
+  ) {
     const deadlineAt = getEndOfMonthDeadline(new Date(absence.createdAt));
     return buildDeadlineInfo("request", deadlineAt, now);
   }

@@ -2,7 +2,10 @@ import { AbsenceStatus, AttachmentOwnerType } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { getStudentOwnedAbsence } from "@/lib/absence-service";
 import { requireStudentRequestSession } from "@/lib/auth";
-import { notifyTeacherAboutRequest } from "@/lib/notification-service";
+import {
+  notifyStudentAboutRequestSubmission,
+  notifyTeacherAboutRequest,
+} from "@/lib/notification-service";
 import { buildStudentPortalPayload } from "@/lib/portal-data";
 import { prisma } from "@/lib/prisma";
 
@@ -65,6 +68,7 @@ export async function POST(
   });
 
   await notifyTeacherAboutRequest(absence.id);
+  await notifyStudentAboutRequestSubmission(absence.id);
 
   return NextResponse.json(await buildStudentPortalPayload(session.user.id));
 }

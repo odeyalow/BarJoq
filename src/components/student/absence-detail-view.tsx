@@ -64,12 +64,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
   if (!isHydrated) {
     return (
       <Card.Root variant="outline">
-        <Card.Body
-          className={css({
-            gap: "3",
-            py: "8",
-          })}
-        >
+        <Card.Body className={css({ gap: "3", py: "8" })}>
           <Text
             className={css({
               fontFamily: "var(--font-space-grotesk)",
@@ -134,12 +129,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
   };
 
   return (
-    <div
-      className={css({
-        display: "grid",
-        gap: "6",
-      })}
-    >
+    <div className={css({ display: "grid", gap: "6" })}>
       <section
         className={`reveal ${css({
           backdropFilter: "blur(18px)",
@@ -152,18 +142,8 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
           p: { base: "5", md: "6" },
         })}`}
       >
-        <div
-          className={css({
-            display: "grid",
-            gap: "4",
-          })}
-        >
-          <div
-            className={css({
-              display: "flex",
-              justifyContent: "flex-start",
-            })}
-          >
+        <div className={css({ display: "grid", gap: "4" })}>
+          <div className={css({ display: "flex", justifyContent: "flex-start" })}>
             <Button
               colorPalette="gray"
               onClick={() => router.push("/student")}
@@ -183,12 +163,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
               justifyContent: "space-between",
             })}
           >
-            <div
-              className={css({
-                display: "grid",
-                gap: "2",
-              })}
-            >
+            <div className={css({ display: "grid", gap: "2" })}>
               <h2
                 className={css({
                   fontFamily: "var(--font-space-grotesk)",
@@ -199,12 +174,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
               >
                 {absence.subject}
               </h2>
-              <Text
-                className={css({
-                  color: "fg.muted",
-                  maxW: "760px",
-                })}
-              >
+              <Text className={css({ color: "fg.muted", maxW: "760px" })}>
                 {statusMeta[absence.status].description}
               </Text>
             </div>
@@ -234,13 +204,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
                     px: "4.5",
                   })}
                 >
-                  <Text
-                    className={css({
-                      textStyle: "xs",
-                    })}
-                  >
-                    Балл
-                  </Text>
+                  <Text className={css({ textStyle: "xs" })}>Балл</Text>
                   <Text
                     className={css({
                       fontFamily: "var(--font-space-grotesk)",
@@ -306,21 +270,14 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
           <input
             ref={fileInputRef}
             accept={acceptedExcuseFileInput}
-            className={css({
-              display: "none",
-            })}
+            className={css({ display: "none" })}
             onChange={(event) => {
               void handleExcuseUpload(event);
             }}
             type="file"
           />
 
-          <div
-            className={css({
-              display: "grid",
-              gap: "4",
-            })}
-          >
+          <div className={css({ display: "grid", gap: "4" })}>
             <Text
               className={css({
                 color: "fg.muted",
@@ -328,8 +285,8 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
                 maxW: "760px",
               })}
             >
-              Для подачи заявки нужно сначала загрузить файл уважительной
-              причины или справку. Поддерживаются PDF, DOCX и фото.
+              Для подачи заявки сначала загрузите файл уважительной причины или
+              справку. Поддерживаются PDF, DOCX и изображения.
             </Text>
 
             <Button
@@ -358,18 +315,10 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
                   p: "3.5",
                 })}
               >
-                <Text
-                  className={css({
-                    fontWeight: "medium",
-                  })}
-                >
+                <Text className={css({ fontWeight: "medium" })}>
                   Файл еще не загружен
                 </Text>
-                <Text
-                  className={css({
-                    mt: "1",
-                  })}
-                >
+                <Text className={css({ mt: "1" })}>
                   Пока нет подтверждающего файла, отправить заявку на
                   отработку нельзя.
                 </Text>
@@ -379,12 +328,77 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
         </StatePanel>
       ) : null}
 
-      {absence.status === "nb_marked" ? (
+      {absence.status === "request_sent" ? (
         <StatePanel
-          accent="red"
-          icon={<ShieldAlert />}
-          title="Вам поставлено Н/Б"
+          description="Преподаватель уже получил вашу заявку. После проверки справки и подготовки задания статус изменится."
+          icon={<Clock3 />}
+          title="Заявка на задание отправлена"
         >
+          <div
+            className={css({
+              display: "grid",
+              gap: "3",
+              gridTemplateColumns: {
+                base: "1fr",
+                md: "repeat(3, minmax(0, 1fr))",
+              },
+            })}
+          >
+            <InfoTile label="Студент" value={student.fullName} />
+            <InfoTile label="Группа" value={student.group} />
+            <InfoTile
+              label="Дата заявки"
+              value={formatPortalDateTime(absence.requestedAt ?? absence.updatedAt)}
+            />
+          </div>
+        </StatePanel>
+      ) : null}
+
+      {absence.status === "awaiting_head" ? (
+        <StatePanel
+          accent="amber"
+          icon={<Clock3 />}
+          title="Ожидается подтверждение от Зав. отделения"
+        >
+          <Text
+            className={css({
+              color: "fg.muted",
+              fontSize: "sm",
+              lineHeight: "1.7",
+              maxW: "760px",
+            })}
+          >
+            Преподаватель уже проверил заявку и подготовил задание, но до
+            подтверждения зав. отделения оно еще не будет доступно в вашем
+            кабинете.
+          </Text>
+
+          <div
+            className={css({
+              display: "grid",
+              gap: "3",
+              gridTemplateColumns: {
+                base: "1fr",
+                md: "repeat(2, minmax(0, 1fr))",
+              },
+            })}
+          >
+            <InfoTile
+              label="Заявка отправлена"
+              value={formatPortalDateTime(absence.requestedAt ?? absence.updatedAt)}
+            />
+            <InfoTile
+              label="Подтверждение преподавателя"
+              value={formatPortalDateTime(
+                absence.teacherConfirmedAt ?? absence.updatedAt,
+              )}
+            />
+          </div>
+        </StatePanel>
+      ) : null}
+
+      {absence.status === "nb_marked" ? (
+        <StatePanel accent="red" icon={<ShieldAlert />} title="Вам поставлено Н/Б">
           <Text
             className={css({
               color: "fg.muted",
@@ -417,38 +431,12 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
         </StatePanel>
       ) : null}
 
-      {absence.status === "request_sent" ? (
-        <StatePanel
-          description="Преподаватель уже получил уведомление. Как только задание будет подготовлено, статус изменится на «Получено задание»."
-          icon={<Clock3 />}
-          title="Заявка на задание отправлена"
-        >
-          <div
-            className={css({
-              display: "grid",
-              gap: "3",
-              gridTemplateColumns: {
-                base: "1fr",
-                md: "repeat(3, minmax(0, 1fr))",
-              },
-            })}
-          >
-            <InfoTile label="Студент" value={student.fullName} />
-            <InfoTile label="Группа" value={student.group} />
-            <InfoTile
-              label="Дата уведомления"
-              value={formatPortalDate(absence.requestedAt ?? absence.updatedAt)}
-            />
-          </div>
-        </StatePanel>
-      ) : null}
-
       {excuseAttachment && absence.status !== "missed" ? (
         <Card.Root variant="outline">
           <Card.Header>
             <Card.Title>Файл уважительной причины</Card.Title>
             <Card.Description>
-              Прикрепленный документ или фото для подачи заявки.
+              Документ или фото, которое было приложено к заявке на отработку.
             </Card.Description>
           </Card.Header>
           <Card.Body>
@@ -487,7 +475,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
             })}
           >
             {canRequestReworkAccess
-              ? "Вы запрашиваете доступ на отработку у вашего зав. отделения. После одобрения, больше возможности на отработку у вас не будет."
+              ? "Вы запрашиваете доступ на отработку у вашего зав. отделения. После одобрения больше возможности на отработку у вас не будет."
               : "Срок на получение задания истек до конца месяца. Повторная отработка для этого пропуска недоступна."}
           </Text>
 
@@ -538,11 +526,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
             </Card.Description>
           </Card.Header>
 
-          <Card.Body
-            className={css({
-              gap: "4",
-            })}
-          >
+          <Card.Body className={css({ gap: "4" })}>
             <div
               className={css({
                 display: "grid",
@@ -566,9 +550,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
       {showAssignment ? (
         <Card.Root
           variant="outline"
-          className={`reveal ${css({
-            borderColor: "border",
-          })}`}
+          className={`reveal ${css({ borderColor: "border" })}`}
           style={
             {
               "--reveal-delay": "160ms",
@@ -582,11 +564,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
             </Card.Description>
           </Card.Header>
 
-          <Card.Body
-            className={css({
-              gap: "4",
-            })}
-          >
+          <Card.Body className={css({ gap: "4" })}>
             <Text
               className={css({
                 lineHeight: "1.75",
@@ -602,9 +580,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
               <Button
                 alignSelf="start"
                 colorPalette="teal"
-                onClick={() =>
-                  router.push(`/student/absences/${absence.id}/reply`)
-                }
+                onClick={() => router.push(`/student/absences/${absence.id}/reply`)}
               >
                 <FilePenLine />
                 Добавить ответ
@@ -617,9 +593,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
       {showResponse ? (
         <Card.Root
           variant="outline"
-          className={`reveal ${css({
-            borderColor: "border",
-          })}`}
+          className={`reveal ${css({ borderColor: "border" })}`}
           style={
             {
               "--reveal-delay": "220ms",
@@ -636,11 +610,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
             </Card.Description>
           </Card.Header>
 
-          <Card.Body
-            className={css({
-              gap: "4",
-            })}
-          >
+          <Card.Body className={css({ gap: "4" })}>
             <Text
               className={css({
                 lineHeight: "1.75",
@@ -662,9 +632,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
               >
                 <Button
                   colorPalette="gray"
-                  onClick={() =>
-                    router.push(`/student/absences/${absence.id}/reply`)
-                  }
+                  onClick={() => router.push(`/student/absences/${absence.id}/reply`)}
                   variant="surface"
                 >
                   <FilePenLine />
@@ -698,14 +666,7 @@ function InfoTile({ label, value }: { label: string; value: string }) {
         p: "3.5",
       })}
     >
-      <Text
-        className={css({
-          color: "fg.muted",
-          textStyle: "xs",
-        })}
-      >
-        {label}
-      </Text>
+      <Text className={css({ color: "fg.muted", textStyle: "xs" })}>{label}</Text>
       <Text
         className={css({
           mt: "1.5",
@@ -740,44 +701,35 @@ function StatePanel({
   actionClassName?: string;
   actionDisabled?: boolean;
   actionPlacement?: "header" | "footer";
-  accent?: "red" | "teal";
+  accent?: "red" | "teal" | "amber";
   children?: ReactNode;
 }) {
+  const accentColor =
+    accent === "red" ? "red.plain.fg" : accent === "amber" ? "amber.plain.fg" : "teal.plain.fg";
+  const colorPalette = accent === "red" ? "red" : accent === "amber" ? "amber" : "teal";
+
   return (
     <Card.Root
       variant="outline"
-      className={`reveal ${css({
-        borderColor: "border",
-      })}`}
+      className={`reveal ${css({ borderColor: "border" })}`}
       style={
         {
           "--reveal-delay": "80ms",
         } as CSSProperties
       }
     >
-      <Card.Body
-        className={css({
-          gap: "5",
-          py: "8",
-        })}
-      >
+      <Card.Body className={css({ gap: "5", py: "8" })}>
         <div
           className={css({
             alignItems: { base: "start", md: "center" },
-            color: accent === "red" ? "red.plain.fg" : "teal.plain.fg",
+            color: accentColor,
             display: "flex",
             flexDirection: { base: "column", md: "row" },
             gap: "3",
             justifyContent: "space-between",
           })}
         >
-          <div
-            className={css({
-              alignItems: "center",
-              display: "inline-flex",
-              gap: "3",
-            })}
-          >
+          <div className={css({ alignItems: "center", display: "inline-flex", gap: "3" })}>
             {icon}
             <Text
               className={css({
@@ -794,7 +746,7 @@ function StatePanel({
           {action && actionPlacement === "header" ? (
             <Button
               className={actionClassName}
-              colorPalette={accent === "red" ? "red" : "teal"}
+              colorPalette={colorPalette}
               disabled={actionDisabled}
               onClick={action.onClick}
             >
@@ -804,12 +756,7 @@ function StatePanel({
         </div>
 
         {description ? (
-          <Text
-            className={css({
-              color: "fg.muted",
-              maxW: "720px",
-            })}
-          >
+          <Text className={css({ color: "fg.muted", maxW: "720px" })}>
             {description}
           </Text>
         ) : null}
@@ -820,7 +767,7 @@ function StatePanel({
           <Button
             alignSelf="start"
             className={actionClassName}
-            colorPalette={accent === "red" ? "red" : "teal"}
+            colorPalette={colorPalette}
             disabled={actionDisabled}
             onClick={action.onClick}
           >
