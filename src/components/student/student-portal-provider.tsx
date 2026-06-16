@@ -2,8 +2,10 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -19,6 +21,7 @@ interface StudentPortalContextValue {
   absences: AbsenceRecord[];
   notifications: StudentNotification[];
   isHydrated: boolean;
+  refreshPortal: () => Promise<void>;
   markNotificationRead: (notificationId: string) => Promise<void>;
   clearReadNotifications: () => Promise<void>;
   uploadExcuseFile: (absenceId: string, file: File) => Promise<void>;
@@ -45,33 +48,79 @@ export function StudentPortalProvider({
   initialData: StudentPortalPayload;
 }) {
   const [portalData, setPortalData] = useState<StudentPortalPayload>(initialData);
+  const isRefreshingRef = useRef(false);
 
   useEffect(() => {
     setPortalData(initialData);
   }, [initialData]);
 
-  const applyPortalMutation = async (
-    input: RequestInfo,
-    init?: RequestInit,
-  ) => {
-    const response = await fetch(input, {
-      credentials: "include",
-      ...init,
-    });
-    const data = (await response.json()) as StudentPortalPayload & {
-      error?: string;
-    };
+  const fetchPortalData = useCallback(
+    async (input: RequestInfo, init?: RequestInit) => {
+      const response = await fetch(input, {
+        credentials: "include",
+        ...init,
+      });
+      const data = (await response.json()) as StudentPortalPayload & {
+        error?: string;
+      };
 
-    if (!response.ok) {
-      if (response.status === 401 && typeof window !== "undefined") {
-        window.location.href = "/";
+      if (!response.ok) {
+        if (response.status === 401 && typeof window !== "undefined") {
+          window.location.href = "/";
+        }
+
+        throw new Error(data.error ?? "Не удалось обновить данные студента.");
       }
 
-      throw new Error(data.error ?? "Не удалось обновить данные студента.");
+      return data;
+    },
+    [],
+  );
+
+  const applyPortalMutation = useCallback(
+    async (input: RequestInfo, init?: RequestInit) => {
+      const data = await fetchPortalData(input, init);
+      setPortalData(data);
+    },
+    [fetchPortalData],
+  );
+
+  const refreshPortal = useCallback(async () => {
+    if (isRefreshingRef.current) {
+      return;
     }
 
-    setPortalData(data);
-  };
+    isRefreshingRef.current = true;
+
+    try {
+      const data = await fetchPortalData("/api/student/portal");
+      setPortalData(data);
+    } catch {
+      // Keep the current snapshot when background refresh fails.
+    } finally {
+      isRefreshingRef.current = false;
+    }
+  }, [fetchPortalData]);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (document.hidden) {
+        return;
+      }
+
+      void refreshPortal();
+    };
+
+    const intervalId = window.setInterval(handleRefresh, 15000);
+    window.addEventListener("focus", handleRefresh);
+    document.addEventListener("visibilitychange", handleRefresh);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleRefresh);
+      document.removeEventListener("visibilitychange", handleRefresh);
+    };
+  }, [refreshPortal]);
 
   const requestAssignment = async (absenceId: string) => {
     await applyPortalMutation(`/api/student/absences/${absenceId}/request`, {
@@ -145,6 +194,7 @@ export function StudentPortalProvider({
         absences: portalData.absences,
         notifications: portalData.notifications,
         isHydrated: true,
+        refreshPortal,
         markNotificationRead,
         clearReadNotifications,
         uploadExcuseFile,

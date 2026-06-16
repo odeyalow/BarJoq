@@ -90,9 +90,11 @@ function mapTeacherStatus(input: {
 
   switch (input.status) {
     case PrismaAbsenceStatus.REQUESTED:
-      return "request_received";
-    case PrismaAbsenceStatus.PENDING_APPROVAL:
+      // Заявка студента на рассмотрении у заведующего отделением — преподаватель пока не действует.
       return "awaiting_head";
+    case PrismaAbsenceStatus.PENDING_APPROVAL:
+      // Заведующий одобрил справку — преподавателю нужно выдать задание.
+      return "request_received";
     case PrismaAbsenceStatus.ASSIGNED:
       return "assignment_sent";
     case PrismaAbsenceStatus.SUBMITTED:
@@ -516,7 +518,7 @@ export async function buildDepartmentHeadPortalPayload(
   }));
 
   const pendingApprovals: DepartmentHeadPendingApprovalRecord[] = allAbsences
-    .filter((absence) => absence.status === PrismaAbsenceStatus.PENDING_APPROVAL)
+    .filter((absence) => absence.status === PrismaAbsenceStatus.REQUESTED)
     .map((absence) => ({
       absenceId: absence.id,
       studentId: absence.student.id,

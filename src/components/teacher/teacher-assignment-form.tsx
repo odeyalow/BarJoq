@@ -73,7 +73,6 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
 
   const canEditAssignment =
     absence.status === "request_received" ||
-    absence.status === "awaiting_head" ||
     absence.status === "assignment_sent";
 
   if (!canEditAssignment) {
@@ -102,13 +101,9 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
     );
   }
 
-  const isPendingApprovalFlow =
-    absence.status === "request_received" || absence.status === "awaiting_head";
   const submitLabel = absence.assignment
     ? "Сохранить изменения"
-    : isPendingApprovalFlow
-      ? "Отправить на подтверждение"
-      : "Отправить задание";
+    : "Отправить задание студенту";
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextFiles = Array.from(event.target.files ?? []);
@@ -212,7 +207,7 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
         </div>
       </section>
 
-      {isPendingApprovalFlow ? (
+      {absence.status === "request_received" ? (
         <Card.Root variant="outline">
           <Card.Body
             className={css({
@@ -230,13 +225,12 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
               <div className={css({ alignItems: "center", display: "inline-flex", gap: "2.5" })}>
                 <ShieldCheck className={css({ h: "5", w: "5" })} />
                 <Text className={css({ fontWeight: "700" })}>
-                  Ожидается подтверждение от Зав. отделения
+                  Заявка одобрена заведующим отделением
                 </Text>
               </div>
               <Text style={{ color: "inherit" }}>
-                {absence.status === "awaiting_head"
-                  ? "Задание уже находится в очереди подтверждения. Студент получит его только после согласования зав. отделения."
-                  : "После сохранения задание не отправится студенту сразу. Сначала оно попадет в очередь подтверждения зав. отделения."}
+                Справку студента уже проверили. После сохранения задание сразу
+                станет доступно студенту для отработки.
               </Text>
             </div>
           </Card.Body>
@@ -257,9 +251,8 @@ export function TeacherAssignmentForm({ absenceId }: { absenceId: string }) {
             {absence.assignment ? "Изменить задание" : "Добавить задание"}
           </Card.Title>
           <Card.Description>
-            {isPendingApprovalFlow
-              ? "Подготовьте текст задания и вложения. После этого заявка будет ожидать подтверждения зав. отделения."
-              : "Здесь можно написать текст задания и прикрепить файлы, которые студент увидит в своей отработке."}
+            Напишите текст задания и при необходимости прикрепите файлы. После
+            сохранения задание сразу станет доступно студенту в его отработке.
           </Card.Description>
         </Card.Header>
 

@@ -2,12 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireDepartmentHeadRequestSession } from "@/lib/auth";
 import { approvePendingAbsences } from "@/lib/department-head-approvals";
 import { buildDepartmentHeadPortalPayload } from "@/lib/portal-data";
-import { prisma } from "@/lib/prisma";
 
-export async function POST(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest) {
   const session = await requireDepartmentHeadRequestSession(request);
 
   if (!session?.user.teacher) {
@@ -17,29 +13,20 @@ export async function POST(
     );
   }
 
-  const { id } = await context.params;
-  const absence = await prisma.absence.findUnique({
-    where: {
-      id,
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (!absence) {
-    return NextResponse.json({ error: "Пропуск не найден." }, { status: 404 });
-  }
+  const body = (await request.json().catch(() => null)) as
+    | { absenceIds?: string[] }
+    | null;
+  const absenceIds = Array.isArray(body?.absenceIds) ? body.absenceIds : [];
 
   try {
-    await approvePendingAbsences([absence.id]);
+    await approvePendingAbsences(absenceIds);
   } catch (error) {
     return NextResponse.json(
       {
         error:
           error instanceof Error
             ? error.message
-            : "Не удалось подтвердить заявку.",
+            : "Не удалось подтвердить заявки.",
       },
       { status: 400 },
     );

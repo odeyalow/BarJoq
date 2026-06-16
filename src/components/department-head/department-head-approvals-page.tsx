@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   CheckCheck,
-  ClipboardList,
+  ChevronDown,
   FileCheck2,
   ShieldCheck,
 } from "lucide-react";
@@ -18,13 +18,19 @@ import { formatPortalDate, formatPortalDateTime } from "@/lib/student-portal";
 import { css } from "styled-system/css";
 
 export function DepartmentHeadApprovalsPage() {
-  const { pendingApprovals, approvePendingApproval } = useDepartmentHeadPortal();
+  const {
+    pendingApprovals,
+    approveManyPendingApprovals,
+    approvePendingApproval,
+  } = useDepartmentHeadPortal();
   const [studentFilter, setStudentFilter] = useState("all");
   const [teacherFilter, setTeacherFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
   const [sortMode, setSortMode] =
     useState<DepartmentHeadApprovalSortMode>("newest");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [isBulkApproving, setIsBulkApproving] = useState(false);
   const [error, setError] = useState("");
 
   const studentOptions = useMemo(
@@ -97,6 +103,9 @@ export function DepartmentHeadApprovalsPage() {
 
     try {
       await approvePendingApproval(absenceId);
+      if (expandedId === absenceId) {
+        setExpandedId(null);
+      }
     } catch (nextError) {
       setError(
         nextError instanceof Error
@@ -108,6 +117,30 @@ export function DepartmentHeadApprovalsPage() {
     }
   };
 
+  const handleApproveAll = async () => {
+    if (!filteredApprovals.length) {
+      return;
+    }
+
+    setError("");
+    setIsBulkApproving(true);
+
+    try {
+      await approveManyPendingApprovals(
+        filteredApprovals.map((approval) => approval.absenceId),
+      );
+      setExpandedId(null);
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "Не удалось подтвердить все заявки.",
+      );
+    } finally {
+      setIsBulkApproving(false);
+    }
+  };
+
   return (
     <div className={css({ display: "grid", gap: "6" })}>
       <section
@@ -116,7 +149,7 @@ export function DepartmentHeadApprovalsPage() {
           gap: "4",
           gridTemplateColumns: {
             base: "1fr",
-            xl: "minmax(0, 1.1fr) minmax(320px, 0.9fr)",
+            xl: "minmax(0, 1.15fr) minmax(320px, 0.85fr)",
           },
         })}
       >
@@ -131,9 +164,8 @@ export function DepartmentHeadApprovalsPage() {
               Очередь согласования
             </Card.Title>
             <Card.Description>
-              Здесь собраны заявки, по которым преподаватель уже проверил
-              справку и подготовил задание. Пока вы не подтвердите заявку,
-              студент не получит доступ к отработке.
+              Сначала отберите заявки по группе, преподавателю или студенту,
+              затем подтверждайте по одной или сразу всю текущую выборку.
             </Card.Description>
           </Card.Header>
           <Card.Body className={css({ gap: "4" })}>
@@ -200,13 +232,12 @@ export function DepartmentHeadApprovalsPage() {
               Быстрая сводка
             </Card.Title>
             <Card.Description>
-              Можно быстро распределять поток заявок по преподавателю, группе
-              или студенту и обрабатывать их партиями.
+              Компактный режим рассчитан на большой поток заявок в одной очереди.
             </Card.Description>
           </Card.Header>
           <Card.Body className={css({ gap: "4" })}>
             <SummaryStat label="Всего заявок" value={String(pendingApprovals.length)} />
-            <SummaryStat label="В текущей выборке" value={String(filteredApprovals.length)} />
+            <SummaryStat label="В выборке" value={String(filteredApprovals.length)} />
             <SummaryStat
               label="Преподавателей"
               value={String(new Set(filteredApprovals.map((item) => item.teacherName)).size)}
@@ -215,149 +246,186 @@ export function DepartmentHeadApprovalsPage() {
               label="Групп"
               value={String(new Set(filteredApprovals.map((item) => item.studentGroup)).size)}
             />
+            <Button
+              colorPalette="teal"
+              disabled={!filteredApprovals.length || Boolean(approvingId)}
+              loading={isBulkApproving}
+              onClick={() => {
+                void handleApproveAll();
+              }}
+            >
+              <CheckCheck />
+              Подтвердить все в выборке
+            </Button>
           </Card.Body>
         </Card.Root>
       </section>
 
       {filteredApprovals.length ? (
-        <section className={css({ display: "grid", gap: "4" })}>
-          {filteredApprovals.map((approval) => (
-            <Card.Root key={approval.absenceId} variant="outline">
-              <Card.Header>
-                <div
-                  className={css({
-                    alignItems: { base: "start", lg: "center" },
-                    display: "flex",
-                    flexDirection: { base: "column", lg: "row" },
-                    gap: "3",
-                    justifyContent: "space-between",
-                  })}
-                >
-                  <div className={css({ display: "grid", gap: "1.5" })}>
-                    <Card.Title className={css({ fontSize: "xl" })}>
-                      {approval.studentFullName}
-                    </Card.Title>
-                    <Card.Description>
-                      {approval.subject} • {approval.studentGroup} •{" "}
-                      {formatPortalDate(approval.date)}
-                    </Card.Description>
-                  </div>
+        <section className={css({ display: "grid", gap: "3" })}>
+          {filteredApprovals.map((approval) => {
+            const isExpanded = expandedId === approval.absenceId;
 
+            return (
+              <Card.Root key={approval.absenceId} variant="outline">
+                <Card.Body className={css({ gap: "4", py: "4.5" })}>
                   <div
                     className={css({
-                      alignItems: "center",
-                      bg: "amber.subtle.bg",
-                      borderRadius: "full",
-                      color: "amber.plain.fg",
-                      display: "inline-flex",
-                      gap: "2",
-                      px: "3.5",
-                      py: "2",
+                      alignItems: { base: "start", lg: "center" },
+                      display: "flex",
+                      flexDirection: { base: "column", lg: "row" },
+                      gap: "3",
+                      justifyContent: "space-between",
                     })}
                   >
-                    <ShieldCheck className={css({ h: "4", w: "4" })} />
-                    Ожидает подтверждения
-                  </div>
-                </div>
-              </Card.Header>
+                    <div className={css({ display: "grid", gap: "2", flex: "1", minW: "0" })}>
+                      <div
+                        className={css({
+                          alignItems: "center",
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "2",
+                        })}
+                      >
+                        <Text
+                          className={css({
+                            fontWeight: "700",
+                            textStyle: "lg",
+                          })}
+                        >
+                          {approval.studentFullName}
+                        </Text>
+                        <StatusPill>Ожидает подтверждения</StatusPill>
+                      </div>
 
-              <Card.Body className={css({ gap: "5" })}>
-                <div
-                  className={css({
-                    display: "grid",
-                    gap: "3",
-                    gridTemplateColumns: {
-                      base: "1fr",
-                      md: "repeat(2, minmax(0, 1fr))",
-                      xl: "repeat(4, minmax(0, 1fr))",
-                    },
-                  })}
-                >
-                  <InfoTile label="Преподаватель" value={approval.teacherName} />
-                  <InfoTile label="Пара" value={approval.lessonLabel} />
-                  <InfoTile
-                    label="Заявка студента"
-                    value={
-                      approval.requestedAt
-                        ? formatPortalDateTime(approval.requestedAt)
-                        : "Не указано"
-                    }
-                  />
-                  <InfoTile
-                    label="Подтверждение преподавателя"
-                    value={
-                      approval.teacherConfirmedAt
-                        ? formatPortalDateTime(approval.teacherConfirmedAt)
-                        : formatPortalDateTime(approval.updatedAt)
-                    }
-                  />
-                </div>
+                      <Text
+                        className={css({
+                          color: "fg.muted",
+                          lineHeight: "1.5",
+                        })}
+                      >
+                        {approval.subject} • {approval.studentGroup} • {approval.teacherName} •{" "}
+                        {formatPortalDate(approval.date)}
+                      </Text>
 
-                {approval.excuseAttachment ? (
-                  <div className={css({ display: "grid", gap: "3" })}>
-                    <SectionTitle
-                      icon={<FileCheck2 className={css({ h: "4.5", w: "4.5" })} />}
-                    >
-                      Справка или уважительная причина
-                    </SectionTitle>
-                    <AttachmentList attachments={[approval.excuseAttachment]} />
-                  </div>
-                ) : null}
+                      <div
+                        className={css({
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "2",
+                        })}
+                      >
+                        <MetaPill label="Пара" value={approval.lessonLabel} />
+                        <MetaPill
+                          label="Заявка"
+                          value={
+                            approval.requestedAt
+                              ? formatPortalDateTime(approval.requestedAt)
+                              : "Не указано"
+                          }
+                        />
+                        <MetaPill
+                          label="Справка"
+                          value={approval.excuseAttachment ? "Приложена" : "Нет файла"}
+                        />
+                      </div>
+                    </div>
 
-                <div className={css({ display: "grid", gap: "3" })}>
-                  <SectionTitle
-                    icon={<ClipboardList className={css({ h: "4.5", w: "4.5" })} />}
-                  >
-                    Задание преподавателя
-                  </SectionTitle>
-                  <div
-                    className={css({
-                      bg: "gray.subtle.bg",
-                      borderRadius: "l2",
-                      p: "4",
-                    })}
-                  >
-                    <Text
+                    <div
                       className={css({
-                        lineHeight: "1.7",
-                        whiteSpace: "pre-line",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "2",
+                        justifyContent: { base: "stretch", lg: "flex-end" },
+                        w: { base: "full", lg: "auto" },
                       })}
                     >
-                      {approval.assignmentText}
-                    </Text>
+                      <Button
+                        colorPalette="gray"
+                        onClick={() =>
+                          setExpandedId(isExpanded ? null : approval.absenceId)
+                        }
+                        variant="surface"
+                      >
+                        <ChevronDown
+                          className={css({
+                            transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                            transitionDuration: "normal",
+                            transitionProperty: "transform",
+                          })}
+                        />
+                        {isExpanded ? "Скрыть" : "Подробнее"}
+                      </Button>
+
+                      <Button
+                        colorPalette="teal"
+                        loading={approvingId === approval.absenceId}
+                        onClick={() => {
+                          void handleApprove(approval.absenceId);
+                        }}
+                      >
+                        <CheckCheck />
+                        Подтвердить
+                      </Button>
+                    </div>
                   </div>
 
-                  {approval.assignmentAttachments.length ? (
-                    <AttachmentList attachments={approval.assignmentAttachments} />
-                  ) : (
-                    <Text color="fg.muted">
-                      К заданию пока не прикреплены дополнительные файлы.
-                    </Text>
-                  )}
-                </div>
+                  {isExpanded ? (
+                    <div
+                      className={css({
+                        borderTop: "1px solid",
+                        borderColor: "border",
+                        display: "grid",
+                        gap: "4",
+                        pt: "4",
+                      })}
+                    >
+                      <div
+                        className={css({
+                          display: "grid",
+                          gap: "3",
+                          gridTemplateColumns: {
+                            base: "1fr",
+                            md: "repeat(2, minmax(0, 1fr))",
+                            xl: "repeat(4, minmax(0, 1fr))",
+                          },
+                        })}
+                      >
+                        <InfoTile label="Студент" value={approval.studentFullName} />
+                        <InfoTile label="Группа" value={approval.studentGroup} />
+                        <InfoTile label="Преподаватель" value={approval.teacherName} />
+                        <InfoTile label="Аудитория" value={approval.classroom} />
+                      </div>
 
-                <div className={css({ display: "flex", justifyContent: "flex-end" })}>
-                  <Button
-                    colorPalette="teal"
-                    loading={approvingId === approval.absenceId}
-                    onClick={() => {
-                      void handleApprove(approval.absenceId);
-                    }}
-                  >
-                    <CheckCheck />
-                    Подтвердить
-                  </Button>
-                </div>
-              </Card.Body>
-            </Card.Root>
-          ))}
+                      {approval.excuseAttachment ? (
+                        <CompactSection
+                          icon={<FileCheck2 className={css({ h: "4.5", w: "4.5" })} />}
+                          title="Справка или уважительная причина"
+                        >
+                          <AttachmentList attachments={[approval.excuseAttachment]} />
+                          <Text color="fg.muted">
+                            Проверьте документ студента и подтвердите заявку —
+                            после этого преподаватель выдаст задание.
+                          </Text>
+                        </CompactSection>
+                      ) : (
+                        <Text color="fg.muted">
+                          Студент не приложил справку к заявке.
+                        </Text>
+                      )}
+                    </div>
+                  ) : null}
+                </Card.Body>
+              </Card.Root>
+            );
+          })}
         </section>
       ) : (
         <Card.Root variant="outline">
           <Card.Body className={css({ py: "8" })}>
             <Text color="fg.muted">
-              В очереди нет заявок, ожидающих подтверждения. Новые заявки после
-              подтверждения преподавателя появятся здесь автоматически.
+              В очереди нет заявок, ожидающих подтверждения. Новые заявки от
+              студентов появятся здесь автоматически.
             </Text>
           </Card.Body>
         </Card.Root>
@@ -456,24 +524,74 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SectionTitle({
-  icon,
-  children,
+function StatusPill({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className={css({
+        alignItems: "center",
+        bg: "amber.subtle.bg",
+        borderRadius: "full",
+        color: "amber.plain.fg",
+        display: "inline-flex",
+        gap: "2",
+        px: "2.5",
+        py: "1",
+      })}
+    >
+      <ShieldCheck className={css({ h: "3.5", w: "3.5" })} />
+      <Text className={css({ fontSize: "xs", fontWeight: "700" })}>{children}</Text>
+    </div>
+  );
+}
+
+function MetaPill({
+  label,
+  value,
 }: {
-  icon: ReactNode;
-  children: ReactNode;
+  label: string;
+  value: string;
 }) {
   return (
     <div
       className={css({
         alignItems: "center",
-        color: "fg.default",
+        bg: "gray.subtle.bg",
+        borderRadius: "full",
         display: "inline-flex",
-        gap: "2.5",
+        gap: "1.5",
+        px: "2.5",
+        py: "1.5",
       })}
     >
-      {icon}
-      <Text className={css({ fontWeight: "semibold" })}>{children}</Text>
+      <Text className={css({ color: "fg.muted", fontSize: "xs" })}>{label}:</Text>
+      <Text className={css({ fontSize: "xs", fontWeight: "semibold" })}>{value}</Text>
+    </div>
+  );
+}
+
+function CompactSection({
+  icon,
+  title,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={css({ display: "grid", gap: "3" })}>
+      <div
+        className={css({
+          alignItems: "center",
+          color: "fg.default",
+          display: "inline-flex",
+          gap: "2.5",
+        })}
+      >
+        {icon}
+        <Text className={css({ fontWeight: "semibold" })}>{title}</Text>
+      </div>
+      {children}
     </div>
   );
 }

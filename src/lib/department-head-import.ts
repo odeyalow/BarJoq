@@ -71,6 +71,7 @@ type ImportContext = {
   fallbackTeacher: TeacherContext;
   teachersByName: Map<string, TeacherContext>;
   studentsByKey: Map<string, StudentContext>;
+  studentsByName: Map<string, StudentContext[]>;
   studentsById: Map<string, StudentContext>;
 };
 
@@ -285,8 +286,17 @@ function buildLessonLabel(row: {
   return "Учебное занятие";
 }
 
+function normalizeNameKey(fullName: string) {
+  // ФИО сопоставляем независимо от порядка слов («Имя Фамилия» = «Фамилия Имя»)
+  return normalizeName(fullName)
+    .split(" ")
+    .filter(Boolean)
+    .sort()
+    .join(" ");
+}
+
 function buildGroupStudentKey(group: string, fullName: string) {
-  return `${normalizeGroup(group)}::${normalizeName(fullName)}`;
+  return `${normalizeGroup(group)}::${normalizeNameKey(fullName)}`;
 }
 
 function sanitizeFileName(value: string) {
@@ -491,6 +501,13 @@ async function getImportContext(): Promise<ImportContext> {
     fallbackTeacher: fallbackTeacherContext,
     teachersByName,
     studentsByKey: new Map(studentEntries),
+    studentsByName: studentEntries.reduce((acc, [, student]) => {
+      const key = normalizeNameKey(student.fullName);
+      const list = acc.get(key) ?? [];
+      list.push(student);
+      acc.set(key, list);
+      return acc;
+    }, new Map<string, StudentContext[]>()),
     studentsById: new Map(studentEntries.map(([, student]) => [student.id, student])),
   };
 }
@@ -569,9 +586,20 @@ function resolveImportRows(
   for (const reportRow of reportRows) {
     const notes: string[] = [];
     let isInvalid = false;
-    const matchedStudent = context.studentsByKey.get(
+    let matchedStudent = context.studentsByKey.get(
       buildGroupStudentKey(reportRow.group, reportRow.fullName),
     );
+    if (!matchedStudent) {
+      // Фолбэк: если по «группа + ФИО» не нашли, ищем по ФИО
+      // (когда группа в файле указана иначе, чем в системе)
+      const byName = context.studentsByName.get(
+        normalizeNameKey(reportRow.fullName),
+      );
+      if (byName && byName.length === 1) {
+        matchedStudent = byName[0];
+        notes.push("Студент сопоставлен по ФИО (группа в файле отличается).");
+      }
+    }
     const scheduleRow = resolveScheduleRow(reportRow, scheduleRows);
     const resolvedTeacher =
       matchedStudent?.teacher ??

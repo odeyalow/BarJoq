@@ -246,12 +246,12 @@ export function TeacherAbsenceDetailView({ absenceId }: { absenceId: string }) {
           }}
           actionPlacement="header"
           icon={<ClipboardList />}
-          title="Получена заявка на отработку"
+          title="Заявка одобрена — выдайте задание"
         >
           <Text color="fg.muted">
-            Студент уже отправил заявку и приложил справку. После сохранения
-            задания оно сначала уйдет на подтверждение зав. отделения и только
-            потом станет доступно студенту.
+            Заведующий отделением проверил справку студента и подтвердил заявку.
+            Добавьте задание — после сохранения оно сразу станет доступно
+            студенту.
           </Text>
         </StatePanel>
       ) : null}
@@ -260,7 +260,7 @@ export function TeacherAbsenceDetailView({ absenceId }: { absenceId: string }) {
         <StatePanel
           accent="amber"
           icon={<ShieldCheck />}
-          title="Ожидается подтверждение от Зав. отделения"
+          title="Заявка на рассмотрении у Зав. отделения"
         >
           <Text
             className={css({
@@ -270,8 +270,9 @@ export function TeacherAbsenceDetailView({ absenceId }: { absenceId: string }) {
               maxW: "760px",
             })}
           >
-            Задание уже подготовлено преподавателем. Пока зав. отделения не
-            подтвердит заявку, студент не увидит материалы для отработки.
+            Студент отправил заявку и приложил справку. Пока заведующий
+            отделением не проверит справку и не подтвердит заявку, выдать задание
+            нельзя.
           </Text>
 
           <div
@@ -285,14 +286,8 @@ export function TeacherAbsenceDetailView({ absenceId }: { absenceId: string }) {
             })}
           >
             <InfoTile
-              label="Заявка студента"
+              label="Заявка отправлена"
               value={formatPortalDateTime(absence.requestedAt ?? absence.updatedAt)}
-            />
-            <InfoTile
-              label="Подтверждение преподавателя"
-              value={formatPortalDateTime(
-                absence.teacherConfirmedAt ?? absence.updatedAt,
-              )}
             />
           </div>
         </StatePanel>
@@ -398,9 +393,7 @@ export function TeacherAbsenceDetailView({ absenceId }: { absenceId: string }) {
           <Card.Header>
             <Card.Title>Задание преподавателя</Card.Title>
             <Card.Description>
-              {absence.status === "awaiting_head"
-                ? `Подготовлено ${formatPortalDateTime(absence.assignment!.sentAt)} и ожидает подтверждения`
-                : `Отправлено ${formatPortalDateTime(absence.assignment!.sentAt)}`}
+              {`Отправлено ${formatPortalDateTime(absence.assignment!.sentAt)}`}
               {absence.assignment?.editedAt
                 ? `, обновлено ${formatPortalDateTime(absence.assignment.editedAt)}`
                 : ""}
@@ -419,8 +412,7 @@ export function TeacherAbsenceDetailView({ absenceId }: { absenceId: string }) {
 
             <AttachmentList attachments={absence.assignment!.attachments} />
 
-            {absence.status === "assignment_sent" ||
-            absence.status === "awaiting_head" ? (
+            {absence.status === "assignment_sent" ? (
               <div
                 className={css({
                   display: "flex",

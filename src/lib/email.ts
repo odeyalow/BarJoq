@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { render } from "@react-email/render";
+import PortalNotificationEmail from "@/emails/portal-notification-email";
 import StudentAbsenceImportEmail from "@/emails/student-absence-import-email";
 import TeacherGroupAbsenceEmail from "@/emails/teacher-group-absence-email";
 import { resend, resendConfigured } from "@/lib/resend";
@@ -14,6 +15,35 @@ function resolveNotificationRecipient(email?: string | null) {
     process.env.MAIL_TEST_RECIPIENT?.trim() || defaultTestRecipient;
 
   return overrideRecipient || email?.trim() || null;
+}
+
+function resolveAppUrl() {
+  const explicitAppUrl =
+    process.env.APP_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+  if (explicitAppUrl) {
+    return explicitAppUrl.replace(/\/+$/, "");
+  }
+
+  const vercelUrl = process.env.VERCEL_URL?.trim();
+
+  if (vercelUrl) {
+    return `https://${vercelUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
+  }
+
+  return "http://localhost:3000";
+}
+
+function buildAbsoluteUrl(path?: string | null) {
+  if (!path) {
+    return undefined;
+  }
+
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  return `${resolveAppUrl()}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 async function sendEmail(input: {
@@ -111,6 +141,36 @@ export async function sendTeacherImportedGroupAbsencesEmail(input: {
       groupName: input.groupName,
       absenceCount: input.absenceCount,
       studentNames: input.studentNames,
+    }),
+  });
+}
+
+export async function sendPortalNotificationEmail(input: {
+  recipientEmail?: string | null;
+  recipientName: string;
+  recipientRole: "student" | "teacher" | "department_head";
+  title: string;
+  message: string;
+  targetHref?: string | null;
+}) {
+  const actionHref = buildAbsoluteUrl(input.targetHref);
+  const actionLabel =
+    input.recipientRole === "student"
+      ? "Открыть личный кабинет"
+      : input.recipientRole === "department_head"
+        ? "Открыть панель зав. отделения"
+        : "Открыть кабинет преподавателя";
+
+  return sendEmail({
+    to: input.recipientEmail,
+    subject: `BarJoq | ${input.title}`,
+    react: PortalNotificationEmail({
+      recipientName: input.recipientName,
+      recipientRole: input.recipientRole,
+      title: input.title,
+      message: input.message,
+      actionHref,
+      actionLabel,
     }),
   });
 }

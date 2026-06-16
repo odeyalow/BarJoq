@@ -7,6 +7,7 @@ import {
   defaultStudentAccount,
   defaultSubjects,
   defaultTeacherAccount,
+  secondStudentAccount,
   seededGroups,
   seededStudents,
 } from "../src/lib/default-accounts";
@@ -35,7 +36,6 @@ async function main() {
     defaultDepartmentHeadAccount.password,
     10,
   );
-  const studentPasswordHash = await hash(defaultStudentAccount.password, 10);
 
   const teacherUser = await prisma.user.create({
     data: {
@@ -101,17 +101,19 @@ async function main() {
   });
 
   for (const student of seededStudents) {
-    const userId = student.withAccount
-      ? (
-          await prisma.user.create({
-            data: {
-              email: student.email,
-              passwordHash: studentPasswordHash,
-              role: UserRole.STUDENT,
-            },
-          })
-        ).id
-      : null;
+    let userId: string | null = null;
+
+    if (student.withAccount) {
+      const passwordHash = await hash(student.password ?? "", 10);
+      const studentUser = await prisma.user.create({
+        data: {
+          email: student.email,
+          passwordHash,
+          role: UserRole.STUDENT,
+        },
+      });
+      userId = studentUser.id;
+    }
 
     await prisma.studentProfile.create({
       data: {
@@ -127,7 +129,10 @@ async function main() {
 
   console.log("Database seeded successfully.");
   console.log(
-    `Student: ${defaultStudentAccount.email} / ${defaultStudentAccount.password}`,
+    `Student 1: ${defaultStudentAccount.email} / ${defaultStudentAccount.password}`,
+  );
+  console.log(
+    `Student 2: ${secondStudentAccount.email} / ${secondStudentAccount.password}`,
   );
   console.log(
     `Teacher: ${defaultTeacherAccount.email} / ${defaultTeacherAccount.password}`,

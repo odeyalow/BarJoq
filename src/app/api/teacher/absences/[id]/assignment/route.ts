@@ -9,10 +9,7 @@ import { isStudentAbsenceDeadlineExpired } from "@/lib/absence-deadlines";
 import { requireTeacherRequestSession } from "@/lib/auth";
 import { buildTeacherPortalPayload } from "@/lib/portal-data";
 import { prisma } from "@/lib/prisma";
-import {
-  notifyDepartmentHeadAboutTeacherConfirmedRequest,
-  notifyStudentAboutAwaitingDepartmentHead,
-} from "@/lib/notification-service";
+import { notifyStudentAboutAssignment } from "@/lib/notification-service";
 
 export async function POST(
   request: NextRequest,
@@ -35,12 +32,14 @@ export async function POST(
   }
 
   if (
-    absence.status !== AbsenceStatus.REQUESTED &&
     absence.status !== AbsenceStatus.PENDING_APPROVAL &&
     absence.status !== AbsenceStatus.ASSIGNED
   ) {
     return NextResponse.json(
-      { error: "Для этого пропуска нельзя сохранить задание." },
+      {
+        error:
+          "Выдать задание можно только после того, как заведующий отделением подтвердит заявку студента.",
+      },
       { status: 400 },
     );
   }
@@ -51,10 +50,7 @@ export async function POST(
       createdAt: absence.createdAt.toISOString(),
       date: absence.date.toISOString(),
       requestedAt: absence.requestedAt?.toISOString(),
-      status:
-        absence.status === AbsenceStatus.PENDING_APPROVAL
-          ? "awaiting_head"
-          : "request_sent",
+      status: "awaiting_head",
       updatedAt: absence.updatedAt.toISOString(),
     })
   ) {
@@ -81,25 +77,20 @@ export async function POST(
     .getAll("files")
     .filter((value): value is File => value instanceof File && value.size > 0);
   const now = new Date();
-  const nextStatus =
-    absence.status === AbsenceStatus.ASSIGNED
-      ? AbsenceStatus.ASSIGNED
-      : AbsenceStatus.PENDING_APPROVAL;
+  // Заявка уже одобрена заведующим отделением — преподаватель выдаёт задание,
+  // и оно сразу становится доступно студенту.
+  const isFirstAssignment = absence.status === AbsenceStatus.PENDING_APPROVAL;
 
   await prisma.absence.update({
     where: {
       id: absence.id,
     },
     data: {
-      status: nextStatus,
+      status: AbsenceStatus.ASSIGNED,
       assignmentText: text,
-      assignmentSentAt:
-        nextStatus === AbsenceStatus.ASSIGNED ? absence.assignmentSentAt ?? now : null,
+      assignmentSentAt: absence.assignmentSentAt ?? now,
       assignmentEditedAt: absence.assignmentText ? now : null,
-      teacherConfirmedAt:
-        nextStatus === AbsenceStatus.PENDING_APPROVAL
-          ? absence.teacherConfirmedAt ?? now
-          : absence.teacherConfirmedAt,
+      teacherConfirmedAt: absence.teacherConfirmedAt ?? now,
     },
   });
 
@@ -110,9 +101,8 @@ export async function POST(
     files,
   });
 
-  if (nextStatus === AbsenceStatus.PENDING_APPROVAL) {
-    await notifyDepartmentHeadAboutTeacherConfirmedRequest(absence.id);
-    await notifyStudentAboutAwaitingDepartmentHead(absence.id);
+  if (isFirstAssignment) {
+    await notifyStudentAboutAssignment(absence.id);
   }
 
   return NextResponse.json(await buildTeacherPortalPayload(session.user.id));
@@ -138,27 +128,25 @@ export async function DELETE(
     return NextResponse.json({ error: "Пропуск не найден." }, { status: 404 });
   }
 
-  if (
-    absence.status !== AbsenceStatus.ASSIGNED &&
-    absence.status !== AbsenceStatus.PENDING_APPROVAL
-  ) {
+  if (absence.status !== AbsenceStatus.ASSIGNED) {
     return NextResponse.json(
       { error: "Для этого пропуска нельзя удалить задание." },
       { status: 400 },
     );
   }
 
+  // Удаляем задание, но одобрение заведующего отделением сохраняется —
+  // заявка возвращается в статус ожидания задания от преподавателя.
   await prisma.absence.update({
     where: {
       id: absence.id,
     },
     data: {
-      status: AbsenceStatus.REQUESTED,
+      status: AbsenceStatus.PENDING_APPROVAL,
       assignmentText: null,
       assignmentSentAt: null,
       assignmentEditedAt: null,
       teacherConfirmedAt: null,
-      departmentHeadApprovedAt: null,
     },
   });
 

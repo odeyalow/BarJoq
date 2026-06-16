@@ -2,10 +2,12 @@ import {
   AbsenceStatus,
   NotificationIcon as PrismaNotificationIcon,
   NotificationTone as PrismaNotificationTone,
+  UserRole,
 } from "@prisma/client";
 import { getStudentAbsenceDeadline } from "@/lib/absence-deadlines";
-import { formatPortalDate, type PortalNotification } from "@/lib/student-portal";
+import { sendPortalNotificationEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { formatPortalDate, type PortalNotification } from "@/lib/student-portal";
 
 type AbsenceNotificationContext = Awaited<
   ReturnType<typeof getAbsenceNotificationContext>
@@ -111,6 +113,7 @@ export async function createNotification(input: {
   message: string;
   tone: PrismaNotificationTone;
   icon: PrismaNotificationIcon;
+  sendEmail?: boolean;
 }) {
   if (!input.userId) {
     return;
@@ -127,6 +130,49 @@ export async function createNotification(input: {
       icon: input.icon,
     },
   });
+
+  if (input.sendEmail === false) {
+    return;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: {
+      id: input.userId,
+    },
+    include: {
+      student: true,
+      teacher: true,
+    },
+  });
+
+  if (!user?.email) {
+    return;
+  }
+
+  const recipientName =
+    user.role === UserRole.STUDENT
+      ? user.student?.fullName
+      : user.teacher?.fullName;
+
+  if (!recipientName) {
+    return;
+  }
+
+  const recipientRole =
+    user.role === UserRole.STUDENT
+      ? "student"
+      : user.teacher?.isDepartmentHead
+        ? "department_head"
+        : "teacher";
+
+  await sendPortalNotificationEmail({
+    recipientEmail: user.email,
+    recipientName,
+    recipientRole,
+    title: input.title,
+    message: input.message,
+    targetHref: input.targetHref,
+  });
 }
 
 async function createNotificationIfMissing(input: {
@@ -137,6 +183,7 @@ async function createNotificationIfMissing(input: {
   message: string;
   tone: PrismaNotificationTone;
   icon: PrismaNotificationIcon;
+  sendEmail?: boolean;
 }) {
   if (!input.userId) {
     return;
@@ -213,7 +260,9 @@ function buildListMessage(
   const hiddenCount = Math.max(0, lines.length - visibleLines.length);
   const body = visibleLines.map((line) => `• ${line}`).join("\n");
   const hiddenSuffix =
-    hiddenCount > 0 ? `\nИ еще ${hiddenCount} ${pluralize(hiddenCount, "позиция", "позиции", "позиций")}.` : "";
+    hiddenCount > 0
+      ? `\nИ еще ${hiddenCount} ${pluralize(hiddenCount, "позиция", "позиции", "позиций")}.`
+      : "";
   const outroBlock = outro ? `\n${outro}` : "";
   return `${intro}\n${body}${hiddenSuffix}${outroBlock}`;
 }
@@ -233,6 +282,7 @@ export async function notifyStudentAboutNewAbsence(absenceId: string) {
     message: `${formatPortalDate(absence.date.toISOString())}, ${absence.lessonLabel}, ${absence.classroom}. Зафиксирован пропуск занятия.`,
     tone: PrismaNotificationTone.RED,
     icon: PrismaNotificationIcon.CALENDAR,
+    sendEmail: false,
   });
 }
 
@@ -248,27 +298,55 @@ export async function notifyStudentAboutRequestSubmission(absenceId: string) {
     absenceId: absence.id,
     targetHref: buildStudentAbsenceHref(absence.id),
     title: "Заявка на отработку отправлена",
-    message: `По пропуску ${buildStudentAbsenceLine(absence)} заявка отправлена преподавателю ${absence.teacher.fullName}.`,
+    message: `По пропуску ${buildStudentAbsenceLine(absence)} заявка со справкой отправлена заведующему отделением на рассмотрение.`,
     tone: PrismaNotificationTone.GRAY,
     icon: PrismaNotificationIcon.BELL,
   });
 }
 
-export async function notifyStudentAboutAwaitingDepartmentHead(absenceId: string) {
-  const absence = await getAbsenceNotificationContext(absenceId);
+export async function notifyDepartmentHeadAboutNewRequest(absenceId: string) {
+  const [absence, departmentHead] = await Promise.all([
+    getAbsenceNotificationContext(absenceId),
+    prisma.teacherProfile.findFirst({
+      where: {
+        isDepartmentHead: true,
+      },
+      include: {
+        user: true,
+      },
+    }),
+  ]);
 
-  if (!absence?.student.userId) {
+  if (!absence || !departmentHead?.userId) {
     return;
   }
 
   await createNotification({
-    userId: absence.student.userId,
+    userId: departmentHead.userId,
     absenceId: absence.id,
-    targetHref: buildStudentAbsenceHref(absence.id),
-    title: "Заявка ожидает подтверждения",
-    message: `Преподаватель подготовил задание по пропуску ${buildStudentAbsenceLine(absence)}. Теперь ожидается подтверждение зав. отделения.`,
+    targetHref: "/teacher/head/approvals",
+    title: "Новая заявка на отработку",
+    message: `${absence.student.fullName}, ${absence.student.group.name} отправил заявку со справкой по предмету «${absence.subject.name}» за ${formatPortalDate(absence.date.toISOString())}. Проверьте справку и подтвердите заявку.`,
     tone: PrismaNotificationTone.AMBER,
     icon: PrismaNotificationIcon.REVIEW,
+  });
+}
+
+export async function notifyTeacherAboutApprovedRequest(absenceId: string) {
+  const absence = await getAbsenceNotificationContext(absenceId);
+
+  if (!absence?.teacher.userId) {
+    return;
+  }
+
+  await createNotification({
+    userId: absence.teacher.userId,
+    absenceId: absence.id,
+    targetHref: buildTeacherAbsenceHref(absence.id),
+    title: "Заявка одобрена — выдайте задание",
+    message: `Заведующий отделением одобрил справку студента ${absence.student.fullName}, ${absence.student.group.name}. Выдайте задание по предмету «${absence.subject.name}» за ${formatPortalDate(absence.date.toISOString())}.`,
+    tone: PrismaNotificationTone.AMBER,
+    icon: PrismaNotificationIcon.BELL,
   });
 }
 
@@ -290,63 +368,6 @@ export async function notifyStudentAboutManualNb(absenceId: string) {
   });
 }
 
-export async function notifyTeacherAboutRequest(absenceId: string) {
-  const absence = await getAbsenceNotificationContext(absenceId);
-
-  if (!absence?.teacher.userId) {
-    return;
-  }
-
-  await createNotification({
-    userId: absence.teacher.userId,
-    absenceId: absence.id,
-    targetHref: buildTeacherAbsenceHref(absence.id),
-    title: "Получена заявка на отработку",
-    message: `${absence.student.fullName}, ${absence.student.group.name}. Запрошено задание по предмету «${absence.subject.name}» за ${formatPortalDate(absence.date.toISOString())}.`,
-    tone: PrismaNotificationTone.GRAY,
-    icon: PrismaNotificationIcon.BELL,
-  });
-}
-
-export async function notifyDepartmentHeadAboutTeacherConfirmedRequest(
-  absenceId: string,
-) {
-  const [absence, departmentHead] = await Promise.all([
-    getAbsenceNotificationContext(absenceId),
-    prisma.teacherProfile.findFirst({
-      where: {
-        isDepartmentHead: true,
-      },
-      include: {
-        user: true,
-      },
-    }),
-  ]);
-
-  if (!absence || !departmentHead?.userId) {
-    return;
-  }
-
-  await prisma.notification.deleteMany({
-    where: {
-      userId: departmentHead.userId,
-      absenceId: absence.id,
-      icon: PrismaNotificationIcon.REVIEW,
-      readAt: null,
-    },
-  });
-
-  await createNotification({
-    userId: departmentHead.userId,
-    absenceId: absence.id,
-    targetHref: "/teacher/head/approvals",
-    title: "Есть заявка на подтверждение отработки",
-    message: `${absence.student.fullName}, ${absence.student.group.name}. Преподаватель ${absence.teacher.fullName} подготовил задание по предмету «${absence.subject.name}» за ${formatPortalDate(absence.date.toISOString())}.`,
-    tone: PrismaNotificationTone.AMBER,
-    icon: PrismaNotificationIcon.REVIEW,
-  });
-}
-
 export async function notifyStudentAboutAssignment(absenceId: string) {
   const absence = await getAbsenceNotificationContext(absenceId);
 
@@ -365,19 +386,19 @@ export async function notifyStudentAboutAssignment(absenceId: string) {
   });
 }
 
-export async function notifyTeacherAboutDepartmentHeadApproval(absenceId: string) {
+export async function notifyStudentAboutDepartmentHeadApproval(absenceId: string) {
   const absence = await getAbsenceNotificationContext(absenceId);
 
-  if (!absence?.teacher.userId) {
+  if (!absence?.student.userId) {
     return;
   }
 
   await createNotification({
-    userId: absence.teacher.userId,
+    userId: absence.student.userId,
     absenceId: absence.id,
-    targetHref: buildTeacherAbsenceHref(absence.id),
-    title: "Заявка подтверждена зав. отделения",
-    message: `По пропуску ${buildTeacherAbsenceLine(absence)} студент уже получил доступ к заданию.`,
+    targetHref: buildStudentAbsenceHref(absence.id),
+    title: "Справка одобрена заведующим отделением",
+    message: `Заведующий отделением одобрил справку по пропуску ${buildStudentAbsenceLine(absence)}. Ожидайте задание от преподавателя ${absence.teacher.fullName}.`,
     tone: PrismaNotificationTone.GREEN,
     icon: PrismaNotificationIcon.COMPLETED,
   });
@@ -487,6 +508,7 @@ export async function notifyTeacherAboutImportedGroupAbsences(input: {
     message: `После загрузки отчета зафиксировано ${input.absenceCount} пропусков у ${input.studentCount} ${pluralize(input.studentCount, "студента", "студентов", "студентов")} группы ${input.groupName}.`,
     tone: PrismaNotificationTone.RED,
     icon: PrismaNotificationIcon.CALENDAR,
+    sendEmail: false,
   });
 }
 
@@ -554,7 +576,9 @@ export async function notifyUsersAboutExpiredAbsenceBatch(absenceIds: string[]) 
       userId,
       absenceId: items.length === 1 ? items[0].id : null,
       targetHref:
-        items.length === 1 ? buildTeacherAbsenceHref(items[0].id) : "/teacher/dashboard",
+        items.length === 1
+          ? buildTeacherAbsenceHref(items[0].id)
+          : "/teacher/dashboard",
       title,
       message,
       tone: PrismaNotificationTone.RED,
@@ -583,19 +607,18 @@ export async function notifyStudentAboutUpcomingDeadlines(
   const soonThresholdMs = 1000 * 60 * 60 * 24;
 
   const requestDueSoon = absences
-    .filter(
-      (absence) =>
-        absence.status === AbsenceStatus.MISSED &&
-        !absence.markedNbAt,
-    )
+    .filter((absence) => absence.status === AbsenceStatus.MISSED && !absence.markedNbAt)
     .map((absence) => ({
       absence,
-      deadline: getStudentAbsenceDeadline({
-        createdAt: absence.createdAt.toISOString(),
-        date: absence.date.toISOString(),
-        status: "missed",
-        updatedAt: absence.updatedAt.toISOString(),
-      }, now),
+      deadline: getStudentAbsenceDeadline(
+        {
+          createdAt: absence.createdAt.toISOString(),
+          date: absence.date.toISOString(),
+          status: "missed",
+          updatedAt: absence.updatedAt.toISOString(),
+        },
+        now,
+      ),
     }))
     .filter(
       (item) =>

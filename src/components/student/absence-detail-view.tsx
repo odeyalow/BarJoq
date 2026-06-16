@@ -358,7 +358,7 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
         <StatePanel
           accent="amber"
           icon={<Clock3 />}
-          title="Ожидается подтверждение от Зав. отделения"
+          title="Справка одобрена — ожидайте задание"
         >
           <Text
             className={css({
@@ -368,9 +368,8 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
               maxW: "760px",
             })}
           >
-            Преподаватель уже проверил заявку и подготовил задание, но до
-            подтверждения зав. отделения оно еще не будет доступно в вашем
-            кабинете.
+            Заведующий отделением проверил вашу справку и одобрил заявку.
+            Ожидайте задание от преподавателя — оно появится в этой карточке.
           </Text>
 
           <div
@@ -388,9 +387,9 @@ export function AbsenceDetailView({ absenceId }: { absenceId: string }) {
               value={formatPortalDateTime(absence.requestedAt ?? absence.updatedAt)}
             />
             <InfoTile
-              label="Подтверждение преподавателя"
+              label="Одобрено заведующим"
               value={formatPortalDateTime(
-                absence.teacherConfirmedAt ?? absence.updatedAt,
+                absence.departmentHeadApprovedAt ?? absence.updatedAt,
               )}
             />
           </div>

@@ -121,7 +121,7 @@ export const statusMeta: Record<AbsenceStatus, StatusMeta> = {
     label: "Не отработан",
     tone: "red",
     description:
-      "Нужно запросить задание у преподавателя до конца месяца.",
+      "Нужно подать заявку на отработку со справкой до конца месяца.",
     icon: AlertCircle,
   },
   nb_marked: {
@@ -135,14 +135,14 @@ export const statusMeta: Record<AbsenceStatus, StatusMeta> = {
     label: "Заявка отправлена",
     tone: "gray",
     description:
-      "Заявка отправлена преподавателю. Задание нужно получить до конца месяца.",
+      "Заявка со справкой отправлена заведующему отделением на рассмотрение (до конца месяца).",
     icon: Clock3,
   },
   awaiting_head: {
-    label: "Ожидает подтверждения",
-    tone: "gray",
+    label: "Справка одобрена",
+    tone: "amber",
     description:
-      "Преподаватель уже подготовил задание, но оно станет доступно только после подтверждения зав. отделения.",
+      "Заведующий отделением одобрил справку. Ожидайте задание от преподавателя.",
     icon: Clock3,
   },
   assignment_received: {
@@ -189,7 +189,7 @@ export const statusFilters: Array<{ value: StatusFilter; label: string }> = [
   { value: "missed", label: "Не отработан" },
   { value: "nb_marked", label: "Н/Б поставлено" },
   { value: "request_sent", label: "Заявка" },
-  { value: "awaiting_head", label: "Ожидает подтверждения" },
+  { value: "awaiting_head", label: "Справка одобрена" },
   { value: "assignment_received", label: "Получено задание" },
   { value: "under_review", label: "На оценивании" },
   { value: "completed", label: "Отработан" },

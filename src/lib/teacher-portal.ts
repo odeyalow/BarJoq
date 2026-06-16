@@ -133,16 +133,16 @@ export const teacherStatusMeta: Record<
     icon: AlertCircle,
   },
   request_received: {
-    label: "Получена заявка",
+    label: "Заявка одобрена — выдайте задание",
     description:
-      "Студент запросил отработку. До конца месяца можно выдать задание.",
-    tone: "gray",
+      "Заведующий отделением подтвердил справку студента. Выдайте задание до конца месяца.",
+    tone: "amber",
     icon: Inbox,
   },
   awaiting_head: {
-    label: "Ожидает подтверждения",
+    label: "На рассмотрении у заведующего",
     description:
-      "Преподаватель уже подготовил задание, теперь нужно подтверждение зав. отделения.",
+      "Студент отправил заявку со справкой. Ожидается рассмотрение заведующим отделением.",
     tone: "gray",
     icon: ClipboardList,
   },
@@ -175,8 +175,8 @@ export const teacherStatusMeta: Record<
 export const teacherStatusOrder: Record<TeacherAbsenceStatus, number> = {
   missed: 0,
   nb_marked: 1,
-  request_received: 2,
-  awaiting_head: 3,
+  awaiting_head: 2,
+  request_received: 3,
   assignment_sent: 4,
   submitted: 5,
   graded: 6,
@@ -190,8 +190,8 @@ export const teacherStatusFilters: Array<{
   { value: "all", label: "Все" },
   { value: "missed", label: "Не отработал" },
   { value: "nb_marked", label: "Н/Б поставлено" },
-  { value: "request_received", label: "Получена заявка" },
-  { value: "awaiting_head", label: "Ожидает подтверждения" },
+  { value: "awaiting_head", label: "На рассмотрении у заведующего" },
+  { value: "request_received", label: "Заявка одобрена" },
   { value: "assignment_sent", label: "Задание отправлено" },
   { value: "submitted", label: "Задание отработано" },
   { value: "graded", label: "Оценено" },
